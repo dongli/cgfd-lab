@@ -1,0 +1,27 @@
+cmake_minimum_required (VERSION 2.8)
+
+project (iap-cgfd-adv-cases Fortran)
+
+set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fdefault-real-8 -ffpe-summary=none -ffree-line-length-none -Ofast -flto")
+
+find_package (PkgConfig)
+if (${PKG_CONFIG_FOUND})
+  pkg_search_module (NETCDF REQUIRED netcdf)
+  if (${NETCDF_FOUND})
+    include_directories (${NETCDF_INCLUDE_DIRS})
+    link_directories (${NETCDF_LIBRARY_DIRS})
+  else ()
+    message (FATAL_ERROR "Pkg-config could not find netcdf library!")
+  endif ()
+else ()
+  message (FATAL_ERROR "Unable to find pkg-config library!")
+endif ()
+
+add_subdirectory ("${PROJECT_SOURCE_DIR}/ftcs")
+add_subdirectory ("${PROJECT_SOURCE_DIR}/upwind")
+add_subdirectory ("${PROJECT_SOURCE_DIR}/beam_warming")
+add_subdirectory ("${PROJECT_SOURCE_DIR}/lax_wendroff")
+add_subdirectory ("${PROJECT_SOURCE_DIR}/fromm")
+add_subdirectory ("${PROJECT_SOURCE_DIR}/leap_frog")
+add_subdirectory ("${PROJECT_SOURCE_DIR}/crank_nicolson")
+add_subdirectory ("${PROJECT_SOURCE_DIR}/weno")
