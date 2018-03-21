@@ -39,8 +39,8 @@ program weno_adv_1d_case
 
   real, allocatable :: x(:)         ! Cell center coordinates
   real, allocatable :: rho(:,:)     ! Tracer density being advected at cell centers
-  real, allocatable :: flux_p(:)    ! Positive flux at cell centers
-  real, allocatable :: flux_m(:)    ! Negative flux at cell centers
+  real, allocatable :: flux_p_c(:)  ! Positive flux at cell centers
+  real, allocatable :: flux_m_c(:)  ! Negative flux at cell centers
   real, allocatable :: flux_i(:)    ! Final flux at cell interfaces
   real dx                           ! Cell interval
   real dt                           ! Time step size
@@ -71,8 +71,8 @@ program weno_adv_1d_case
 
   allocate(x(nx))
   allocate(rho(1-ns:nx+ns,2))
-  allocate(flux_p(1-ns:nx+ns))
-  allocate(flux_m(1-ns:nx+ns))
+  allocate(flux_p_c(1-ns:nx+ns))
+  allocate(flux_m_c(1-ns:nx+ns))
   allocate(flux_i(1:nx+1))
 
   ! Set mesh grid coordinates.
@@ -125,8 +125,8 @@ program weno_adv_1d_case
 
   deallocate(x)
   deallocate(rho)
-  deallocate(flux_p)
-  deallocate(flux_m)
+  deallocate(flux_p_c)
+  deallocate(flux_m_c)
   deallocate(flux_i)
 
 contains
@@ -173,35 +173,35 @@ contains
     ! Calculate splitted flux at cell centers by using Lax-Friedrichs splitting.
     ! The splitting is for numerical stability by respecting upwind.
     do i = 1, nx
-      flux_p(i) = 0.5d0 * (u + alpha) * rho(i)
-      flux_m(i) = 0.5d0 * (u - alpha) * rho(i)
+      flux_p_c(i) = 0.5d0 * (u + alpha) * rho(i)
+      flux_m_c(i) = 0.5d0 * (u - alpha) * rho(i)
     end do
-    call full_boundary_condition(flux_p)
-    call full_boundary_condition(flux_m)
+    call full_boundary_condition(flux_p_c)
+    call full_boundary_condition(flux_m_c)
 
     do i = 1, nx
       ! Positive flux at cell interfaces
       ! - Calculate flux at interfaces for each stencil.
-      flux_s_i(1) = (2 * flux_p(i-2) - 7 * flux_p(i-1) + 11 * flux_p(i  )) / 6.0d0
-      flux_s_i(2) = (  - flux_p(i-1) + 5 * flux_p(i  ) +  2 * flux_p(i+1)) / 6.0d0
-      flux_s_i(3) = (2 * flux_p(i  ) + 5 * flux_p(i+1)      - flux_p(i+2)) / 6.0d0
+      flux_s_i(1) = (2 * flux_p_c(i-2) - 7 * flux_p_c(i-1) + 11 * flux_p_c(i  )) / 6.0d0
+      flux_s_i(2) = (  - flux_p_c(i-1) + 5 * flux_p_c(i  ) +  2 * flux_p_c(i+1)) / 6.0d0
+      flux_s_i(3) = (2 * flux_p_c(i  ) + 5 * flux_p_c(i+1)      - flux_p_c(i+2)) / 6.0d0
       ! - Calculate smooth indicators for each stencil regarding cell centers.
-      beta(1) = c1 * (flux_p(i-2) - 2 * flux_p(i-1) + flux_p(i  ))**2 + c2 * (flux_p(i-2) - 4 * flux_p(i-1) + 3 * flux_p(i))**2
-      beta(2) = c1 * (flux_p(i-1) - 2 * flux_p(i  ) + flux_p(i+1))**2 + c2 * (flux_p(i-1) - flux_p(i+1))**2
-      beta(3) = c1 * (flux_p(i  ) - 2 * flux_p(i+1) + flux_p(i+2))**2 + c2 * (flux_p(i+2) - 4 * flux_p(i+1) + 3 * flux_p(i))**2
+      beta(1) = c1 * (flux_p_c(i-2) - 2 * flux_p_c(i-1) + flux_p_c(i  ))**2 + c2 * (flux_p_c(i-2) - 4 * flux_p_c(i-1) + 3 * flux_p_c(i))**2
+      beta(2) = c1 * (flux_p_c(i-1) - 2 * flux_p_c(i  ) + flux_p_c(i+1))**2 + c2 * (flux_p_c(i-1) - flux_p_c(i+1))**2
+      beta(3) = c1 * (flux_p_c(i  ) - 2 * flux_p_c(i+1) + flux_p_c(i+2))**2 + c2 * (flux_p_c(i+2) - 4 * flux_p_c(i+1) + 3 * flux_p_c(i))**2
       ! - Calculate stencil linear combination weights considering smooth indicators.
       wgt(:) = gamma_p(:) / (eps + beta(:))**2
       wgt(:) = wgt(:) / sum(wgt)
       flux_p_i = sum(wgt(:) * flux_s_i(:))
       ! Negative flux at cell interfaces
       ! - Calculate flux at interfaces for each stencil.
-      flux_s_i(1) = (2 * flux_m(i+1) + 5 * flux_m(i  )      - flux_m(i-1)) / 6.0d0
-      flux_s_i(2) = (  - flux_m(i+2) + 5 * flux_m(i+1) +  2 * flux_m(i  )) / 6.0d0
-      flux_s_i(3) = (2 * flux_m(i+3) - 7 * flux_m(i+2) + 11 * flux_m(i+1)) / 6.0d0
+      flux_s_i(1) = (2 * flux_m_c(i+1) + 5 * flux_m_c(i  )      - flux_m_c(i-1)) / 6.0d0
+      flux_s_i(2) = (  - flux_m_c(i+2) + 5 * flux_m_c(i+1) +  2 * flux_m_c(i  )) / 6.0d0
+      flux_s_i(3) = (2 * flux_m_c(i+3) - 7 * flux_m_c(i+2) + 11 * flux_m_c(i+1)) / 6.0d0
       ! - Calculate smooth indicators for each stencil regarding cell centers.
-      beta(1) = c1 * (flux_m(i-1) - 2 * flux_m(i  ) + flux_m(i+1))**2 + c2 * (flux_m(i-1) - 4 * flux_m(i  ) + 3 * flux_m(i+1))**2
-      beta(2) = c1 * (flux_m(i  ) - 2 * flux_m(i+1) + flux_m(i+2))**2 + c2 * (flux_m(i  ) - flux_m(i+2))**2
-      beta(3) = c1 * (flux_m(i+1) - 2 * flux_m(i+2) + flux_m(i+3))**2 + c2 * (flux_m(i+3) - 4 * flux_m(i+2) + 3 * flux_m(i+1))**2
+      beta(1) = c1 * (flux_m_c(i-1) - 2 * flux_m_c(i  ) + flux_m_c(i+1))**2 + c2 * (flux_m_c(i-1) - 4 * flux_m_c(i  ) + 3 * flux_m_c(i+1))**2
+      beta(2) = c1 * (flux_m_c(i  ) - 2 * flux_m_c(i+1) + flux_m_c(i+2))**2 + c2 * (flux_m_c(i  ) - flux_m_c(i+2))**2
+      beta(3) = c1 * (flux_m_c(i+1) - 2 * flux_m_c(i+2) + flux_m_c(i+3))**2 + c2 * (flux_m_c(i+3) - 4 * flux_m_c(i+2) + 3 * flux_m_c(i+1))**2
       ! - Calculate stencil linear combination weights considering smooth indicators.
       wgt(:) = gamma_m(:) / (eps + beta(:))**2
       wgt(:) = wgt(:) / sum(wgt)
