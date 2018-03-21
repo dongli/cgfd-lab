@@ -18,15 +18,17 @@ program fromm_adv_1d_case
   real dt                           ! Time step size
   integer nx                        ! Cell number
   integer nt                        ! Integration time step number
+  logical :: use_rk3 = .false.
 
   real :: u = 0.005                 ! Advection speed
+  real coef                         ! dt / dx
   integer, parameter :: ns = 1      ! Stencil width
 
   integer i, time_step, old, new
   character(256) namelist_path
   logical is_exist
 
-  namelist /params/ nx, nt, dx, dt, u
+  namelist /params/ nx, nt, dx, dt, use_rk3, u
 
   call get_command_argument(1, namelist_path)
   inquire(file=namelist_path, exist=is_exist)
@@ -52,7 +54,7 @@ program fromm_adv_1d_case
   ! Set initial condition.
   old = 1; new = 2
   do i = 1, nx
-    if (x(i) >= 0.05 .and. x(i) <= 0.1) then
+    if (x(i) >= 0.05 .and. x(i) <= 0.3) then
       rho(i,old) = 1.0d0
     else
       rho(i,old) = 0.0d0
@@ -62,27 +64,30 @@ program fromm_adv_1d_case
   call output(rho(:,old))
 
   ! Run integration.
+  coef = dt / dx
   time_step = 0
   print *, time_step, sum(rho(1:nx,old))
   do while (time_step < nt)
     ! RK 1st stage
     call fromm(rho(:,old))
     do i = 1, nx
-      rho(i,new) = rho(i,old) - dt / dx * (flux(i+1) - flux(i))
+      rho(i,new) = rho(i,old) - coef * (flux(i+1) - flux(i))
     end do
     call full_boundary_condition(rho(:,new))
-    ! ! RK 2nd stage
-    ! call fromm(rho(:,new))
-    ! do i = 1, nx
-    !  rho(i,new) = (3.0d0 * rho(i,old) + rho(i,new) - dt / dx * (flux(i+1) - flux(i))) / 4.0d0
-    ! end do
-    ! call full_boundary_condition(rho(:,new))
-    ! ! RK 3st stage
-    ! call fromm(rho(:,new))
-    ! do i = 1, nx
-    !  rho(i,new) = (rho(i,old) + 2.0d0 * (rho(i,new) - dt / dx * (flux(i+1) - flux(i)))) / 3.0d0
-    ! end do
-    ! call full_boundary_condition(rho(:,new))
+    if (use_rk3) then
+      ! RK 2nd stage
+      call fromm(rho(:,new))
+      do i = 1, nx
+       rho(i,new) = (3.0d0 * rho(i,old) + rho(i,new) - coef * (flux(i+1) - flux(i))) / 4.0d0
+      end do
+      call full_boundary_condition(rho(:,new))
+      ! RK 3st stage
+      call fromm(rho(:,new))
+      do i = 1, nx
+       rho(i,new) = (rho(i,old) + 2.0d0 * (rho(i,new) - coef * (flux(i+1) - flux(i)))) / 3.0d0
+      end do
+      call full_boundary_condition(rho(:,new))
+    end if
     ! Change time indices.
     i = old; old = new; new = i
     time_step = time_step + 1
@@ -127,11 +132,11 @@ contains
     integer i
 
     do i = 1, nx
-      lw = 0.5d0 * (u * (rho(i+1) + rho(i)) - dt / dx * u**2 * (rho(i+1) - rho(i)))
+      lw = 0.5d0 * (u * (rho(i+1) + rho(i)) - coef * u**2 * (rho(i+1) - rho(i)))
       if (u >= 0) then
-        bw = 0.5d0 * (u * (3 * rho(i  ) - rho(i-1)) - dt / dx * u**2 * (rho(i  ) - rho(i-1)))
+        bw = 0.5d0 * (u * (3 * rho(i  ) - rho(i-1)) - coef * u**2 * (rho(i  ) - rho(i-1)))
       else
-        bw = 0.5d0 * (u * (3 * rho(i+1) - rho(i+2)) - dt / dx * u**2 * (rho(i+2) - rho(i+1)))
+        bw = 0.5d0 * (u * (3 * rho(i+1) - rho(i+2)) - coef * u**2 * (rho(i+2) - rho(i+1)))
       end if
       flux(i+1) = 0.5d0 * (lw + bw)
     end do

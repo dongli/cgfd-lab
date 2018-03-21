@@ -1,11 +1,11 @@
 ! This is a 1D advection example using square initial condition and periodic
-! boundary condition for leap-frog finite difference scheme.
+! boundary condition for MPDATA finite difference scheme.
 !
 ! Li Dong <dongli@lasg.iap.ac.cn>
 !
-! - 2018-03-20: Initial creation.
+! - 2018-03-21: Initial creation.
 
-program leap_frog_adv_1d_case
+program mpdata_adv_1d_case
 
   use netcdf
 
@@ -14,20 +14,23 @@ program leap_frog_adv_1d_case
   real, allocatable :: x(:)         ! Cell center coordinates
   real, allocatable :: rho(:,:)     ! Tracer density being advected at cell centers
   real, allocatable :: flux(:)      ! Flux at cell interfaces
+  real, allocatable :: uc(:)        ! Antidiffusion velocity
   real dx                           ! Cell interval
   real dt                           ! Time step size
   integer nx                        ! Cell number
   integer nt                        ! Integration time step number
+  integer :: iord = 3               ! Scheme order
 
   real :: u = 0.005                 ! Advection speed
   real coef                         ! dt / dx
+  real, parameter :: eps = 1.0d-15  ! A small value to avoid divided-by-zero
   integer, parameter :: ns = 1      ! Stencil width
 
-  integer i, time_step, old, middle, new
+  integer i, time_step, old, new, star
   character(256) namelist_path
   logical is_exist
 
-  namelist /params/ nx, nt, dx, dt, u
+  namelist /params/ nx, nt, dx, dt, iord, u
 
   call get_command_argument(1, namelist_path)
   inquire(file=namelist_path, exist=is_exist)
@@ -41,8 +44,9 @@ program leap_frog_adv_1d_case
   close(10)
 
   allocate(x(nx))
-  allocate(rho(1-ns:nx+ns,3))
+  allocate(rho(1-ns:nx+ns,0:2))
   allocate(flux(1:nx+1))
+  allocate(uc(1:nx+1))
 
   ! Set mesh grid coordinates.
   dx = 1.0d0 / nx
@@ -51,7 +55,7 @@ program leap_frog_adv_1d_case
   end do
 
   ! Set initial condition.
-  old = 1; middle = 2; new = 3
+  star = 0; old = 1; new = 2
   do i = 1, nx
     if (x(i) >= 0.05 .and. x(i) <= 0.3) then
       rho(i,old) = 1.0d0
@@ -60,7 +64,6 @@ program leap_frog_adv_1d_case
     end if
   end do
   call full_boundary_condition(rho(:,old))
-  rho(:,middle) = rho(:,old)
   call output(rho(:,old))
 
   ! Run integration.
@@ -68,13 +71,9 @@ program leap_frog_adv_1d_case
   time_step = 0
   print *, time_step, sum(rho(1:nx,old))
   do while (time_step < nt)
-    call leap_frog(rho(:,middle))
-    do i = 1, nx
-      rho(i,new) = rho(i,old) - coef * (flux(i+1) - flux(i))
-    end do
-    call full_boundary_condition(rho(:,new))
+    call mpdata(rho(:,old), rho(:,new))
     ! Change time indices.
-    i = old; old = middle; middle = new; new = i
+    i = old; old = new; new = i
     time_step = time_step + 1
     call output(rho(:,old))
     print *, time_step, sum(rho(1:nx,old))
@@ -109,18 +108,46 @@ contains
 
   end subroutine half_boundary_condition
 
-  subroutine leap_frog(rho)
+  subroutine mpdata(rho, rho_star)
 
     real, intent(in) :: rho(1-ns:nx+ns)
+    real, intent(inout) :: rho_star(1-ns:nx+ns)
+
+    integer i, j
+
+    uc(:) = u
+    rho_star(:) = rho(:)
+    do j = 1, iord
+      if (j > 1) then
+        ! Calculate antidiffusion velocity.
+        do i = 1, nx
+          uc(i+1) = (abs(uc(i+1)) - uc(i+1)**2 * coef) * &
+                    (rho_star(i+1) - rho_star(i)) / (rho_star(i+1) + rho_star(i) + eps)
+        end do
+      end if
+      call upwind(rho_star, uc)
+      ! Update tracer density.
+      do i = 1, nx
+        rho_star(i) = rho_star(i) - coef * (flux(i+1) - flux(i))
+      end do
+      call full_boundary_condition(rho_star)
+    end do
+
+  end subroutine mpdata
+
+  subroutine upwind(rho, u)
+
+    real, intent(in) :: rho(1-ns:nx+ns)
+    real, intent(in) :: u(1:nx+1)
 
     integer i
 
     do i = 1, nx
-      flux(i+1) = 0.5d0 * u * (rho(i+1) + rho(i))
+      flux(i+1) = 0.5d0 * (u(i+1) * (rho(i+1) + rho(i)) - abs(u(i+1)) * (rho(i+1) - rho(i)))
     end do
     call half_boundary_condition(flux)
 
-  end subroutine leap_frog
+  end subroutine upwind
 
   subroutine output(rho)
 
@@ -129,7 +156,7 @@ contains
     character(30) file_name
     integer file_id, time_dim_id, time_var_id, x_dim_id, x_var_id, rho_var_id, ierr
 
-    write(file_name, "('leap_frog.', I3.3, '.nc')") time_step
+    write(file_name, "('mpdata.', I3.3, '.nc')") time_step
 
     ierr = nf90_create(file_name, nf90_clobber, file_id)
     if (ierr /= nf90_noerr) then
@@ -195,4 +222,4 @@ contains
 
   end subroutine output
 
-end program leap_frog_adv_1d_case
+end program mpdata_adv_1d_case

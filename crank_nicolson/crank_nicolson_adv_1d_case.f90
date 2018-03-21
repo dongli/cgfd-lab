@@ -61,6 +61,7 @@ program crank_nicolson_adv_1d_case
   integer nt                        ! Integration time step number
 
   real :: u = 0.005                 ! Advection speed
+  real coef                         ! dt / dx * 0.25d0
   integer, parameter :: ns = 1      ! Stencil width
 
   integer i, j, k, time_step, old, new
@@ -97,7 +98,7 @@ program crank_nicolson_adv_1d_case
   ! Set initial condition.
   old = 1; new = 2
   do i = 1, nx
-    if (x(i) >= 0.05 .and. x(i) <= 0.1) then
+    if (x(i) >= 0.05 .and. x(i) <= 0.3) then
       rho(i,old) = 1.0d0
     else
       rho(i,old) = 0.0d0
@@ -107,10 +108,10 @@ program crank_nicolson_adv_1d_case
   call output(rho(:,old))
 
   ! Run integration.
+  coef = dt / dx * 0.25d0
   time_step = 0
   print *, time_step, sum(rho(1:nx,old))
   do while (time_step < nt)
-    ! RK 1st stage
     call crank_nicolson(rho(:,old))
     do i = 1, nx
       rho(i,new) = gsl_vector_get(y, int(i - 1, c_size_t))
@@ -150,24 +151,22 @@ contains
 
     real, intent(in) :: rho(1-ns:nx+ns)
 
-    real(c_double) c
     integer(c_size_t) i
 
-    c = dt / dx * 0.25d0
     do i = 1, nx
       ! Although u is constant in this case, we still write as it is variant.
       if (i == 1) then
-        call gsl_vector_set(a1, i - 1, - c * u)
-        call gsl_vector_set(a3, i - 1,   c * u)
+        call gsl_vector_set(a1, i - 1, - coef * u)
+        call gsl_vector_set(a3, i - 1,   coef * u)
       else if (i == nx) then
-        call gsl_vector_set(a1, i - 1, - c * u)
-        call gsl_vector_set(a3, i - 1,   c * u)
+        call gsl_vector_set(a1, i - 1, - coef * u)
+        call gsl_vector_set(a3, i - 1,   coef * u)
       else
-        call gsl_vector_set(a1, i - 1, - c * u)
-        call gsl_vector_set(a3, i - 1,   c * u)
+        call gsl_vector_set(a1, i - 1, - coef * u)
+        call gsl_vector_set(a3, i - 1,   coef * u)
       end if
       call gsl_vector_set(a2, i - 1, 1.0)
-      call gsl_vector_set(b, i - 1, c * u * rho(i-1) + rho(i) - c * u * rho(i+1))
+      call gsl_vector_set(b, i - 1, coef * u * rho(i-1) + rho(i) - coef * u * rho(i+1))
     end do
     call gsl_linalg_solve_cyc_tridiag(a2, a3, a1, b, y)
 

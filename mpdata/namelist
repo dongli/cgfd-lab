@@ -2,5 +2,4 @@
 nt = 200
 nx = 100
 dt = 1
-use_rk3 = .true.
 /

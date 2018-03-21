@@ -48,6 +48,7 @@ program weno_adv_1d_case
   integer nt                        ! Integration time step number
 
   real :: u = 0.005                 ! Advection speed
+  real coef                         ! dt / dx
   real, parameter :: eps = 1.0d-6   ! A small value to avoid divided-by-zero
   integer, parameter :: ns = 3      ! Stencil width
 
@@ -83,7 +84,7 @@ program weno_adv_1d_case
   ! Set initial condition.
   old = 1; new = 2
   do i = 1, nx
-    if (x(i) >= 0.05 .and. x(i) <= 0.1) then
+    if (x(i) >= 0.05 .and. x(i) <= 0.3) then
       rho(i,old) = 1.0d0
     else
       rho(i,old) = 0.0d0
@@ -93,25 +94,26 @@ program weno_adv_1d_case
   call output(rho(:,old))
 
   ! Run integration.
+  coef = dt / dx
   time_step = 0
   print *, time_step, sum(rho(1:nx,old))
   do while (time_step < nt)
     ! RK 1st stage
     call weno(rho(:,old))
     do i = 1, nx
-      rho(i,new) = rho(i,old) - dt / dx * (flux_i(i+1) - flux_i(i))
+      rho(i,new) = rho(i,old) - coef * (flux_i(i+1) - flux_i(i))
     end do
     call full_boundary_condition(rho(:,new))
     ! RK 2nd stage
     call weno(rho(:,new))
     do i = 1, nx
-      rho(i,new) = (3.0d0 * rho(i,old) + rho(i,new) - dt / dx * (flux_i(i+1) - flux_i(i))) / 4.0d0
+      rho(i,new) = (3.0d0 * rho(i,old) + rho(i,new) - coef * (flux_i(i+1) - flux_i(i))) / 4.0d0
     end do
     call full_boundary_condition(rho(:,new))
     ! RK 3st stage
     call weno(rho(:,new))
     do i = 1, nx
-      rho(i,new) = (rho(i,old) + 2.0d0 * (rho(i,new) - dt / dx * (flux_i(i+1) - flux_i(i)))) / 3.0d0
+      rho(i,new) = (rho(i,old) + 2.0d0 * (rho(i,new) - coef * (flux_i(i+1) - flux_i(i)))) / 3.0d0
     end do
     call full_boundary_condition(rho(:,new))
     ! Change time indices.
