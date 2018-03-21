@@ -2,7 +2,7 @@ cmake_minimum_required (VERSION 2.8)
 
 project (iap-cgfd-adv-cases Fortran)
 
-set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fdefault-real-8 -ffpe-summary=none -ffree-line-length-none -Ofast -flto")
+set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fdefault-real-8 -ffree-line-length-none -Ofast -flto")
 
 find_package (PkgConfig)
 if (${PKG_CONFIG_FOUND})
