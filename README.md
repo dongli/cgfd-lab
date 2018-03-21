@@ -1,6 +1,6 @@
 # Introduction
 
-This repository contains some classic or practical advection schemes for demonstrating them to first year of graduates:
+This repository contains some classic or practical advection schemes for demonstrating them to first year graduates:
 
 - FTCS (Forward-in-time, centered-in-space)
 - Upwind
@@ -13,13 +13,26 @@ This repository contains some classic or practical advection schemes for demonst
 - MPDATA
 - WENO
 
-You can download it, and run each schemes.
+You can download it, and run each schemes by:
+
+```
+$ cd <repository directory>
+$ mkdir build
+$ cd build
+$ cmake ..
+$ make
+$ cd upwind
+$ ./upwind_adv_1d_case.exe ../../upwind/namelist
+$ ncl ../../tools/plot_adv_1d.ncl scheme=\"upwind\"
+```
 
 # Software dependencies
 
 - Fortran compiler (I use `gfortran`)
-- NetCDF library
-- CMake
+- NetCDF library (for outputting data)
+- GSL library (for tridiagonal matrix solver)
+- CMake (for generating Makefile)
+- NCL (for plotting)
 
 # Authors
 
