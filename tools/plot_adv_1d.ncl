@@ -67,8 +67,35 @@ begin
 
   do k = 0, dimsizes(fs)-1
     f = addfile(fs(k), "r")
+    nx = dimsizes(f->x)
     system("echo 'File "+fs(k)+"' with total mass "+sprintf("%20.10f", sum(f->rho(0,:))))
     plot = gsn_csm_xy(wks, f->x, f->rho(0,:), res)
+    if (scheme .eq. "tspas") then
+      if (k .gt. 0) then
+        res2 = True
+        res2@gsnDraw = False
+        res2@gsnFrame = False
+        res2@xyMarkLineMode = "Markers"
+        res2@xyMarker = 16
+        res2@xyMarkerColor = "red"
+
+        c_star = f->c_star(0,:)
+        do i = 1, nx
+          if (c_star(i) .ge. 0.5) then
+            if (i .eq. nx) then
+              c_star(i) = 0.5 * (f->rho(0,i-1) + f->rho(0,0))
+            else
+              c_star(i) = 0.5 * (f->rho(0,i-1) + f->rho(0,i))
+            end if
+          else
+            c_star(i) = 1.0e33
+          end if
+        end do
+        c_star@_FillValue = 1.0e33
+        plot2 = gsn_csm_xy(wks, f->xi, c_star, res2)
+        overlay(plot, plot2)
+      end if
+    end if
     draw(plot)
     frame(wks)
   end do

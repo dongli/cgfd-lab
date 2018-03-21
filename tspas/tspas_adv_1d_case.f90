@@ -12,6 +12,7 @@ program tspas_adv_1d_case
   implicit none
 
   real, allocatable :: x(:)         ! Cell center coordinates
+  real, allocatable :: xi(:)        ! Cell interface coordinates
   real, allocatable :: rho(:,:)     ! Tracer density being advected at cell centers
   real, allocatable :: flux(:)      ! Flux at cell interfaces
   real, allocatable :: gamma(:)     !
@@ -47,6 +48,7 @@ program tspas_adv_1d_case
   close(10)
 
   allocate(x(nx))
+  allocate(xi(nx+1))
   allocate(rho(1-ns:nx+ns,0:2))
   allocate(flux(1:nx+1))
   allocate(gamma(1:nx+1))
@@ -58,7 +60,9 @@ program tspas_adv_1d_case
   dx = 1.0d0 / nx
   do i = 1, nx
     x(i) = (i - 1) * dx
+    xi(i) = x(i) - 0.5d0 * dx
   end do
+  xi(nx+1) = x(i) + 0.5d0 * dx
 
   ! Set initial condition.
   old = 1; new = 2
@@ -90,6 +94,7 @@ program tspas_adv_1d_case
   end do
 
   deallocate(x)
+  deallocate(xi)
   deallocate(rho)
   deallocate(flux)
   deallocate(gamma)
@@ -172,7 +177,8 @@ contains
     real, intent(in) :: rho(1-ns:nx+ns)
 
     character(30) file_name
-    integer file_id, time_dim_id, time_var_id, x_dim_id, x_var_id, rho_var_id, ierr
+    integer file_id, time_dim_id, time_var_id, x_dim_id, x_var_id
+    integer xi_dim_id, xi_var_id, rho_var_id, c_star_var_id, ierr
 
     write(file_name, "('tspas.', I3.3, '.nc')") time_step
 
@@ -206,9 +212,27 @@ contains
       stop 1
     end if
 
+    ierr = nf90_def_dim(file_id, 'xi', nx + 1, xi_dim_id)
+    if (ierr /= nf90_noerr) then
+      write(*, *) '[Error]: Failed to define xi dimension!'
+      stop 1
+    end if
+
+    ierr = nf90_def_var(file_id, 'xi', nf90_float, [xi_dim_id], xi_var_id)
+    if (ierr /= nf90_noerr) then
+      write(*, *) '[Error]: Failed to define xi variable!'
+      stop 1
+    end if
+
     ierr = nf90_def_var(file_id, 'rho', nf90_float, [x_dim_id, time_dim_id], rho_var_id)
     if (ierr /= nf90_noerr) then
       write(*, *) '[Error]: Failed to define rho variable!'
+      stop 1
+    end if
+
+    ierr = nf90_def_var(file_id, 'c_star', nf90_float, [xi_dim_id, time_dim_id], c_star_var_id)
+    if (ierr /= nf90_noerr) then
+      write(*, *) '[Error]: Failed to def c_star variable!'
       stop 1
     end if
 
@@ -226,9 +250,21 @@ contains
       stop 1
     end if
 
+    ierr = nf90_put_var(file_id, xi_var_id, xi)
+    if (ierr /= nf90_noerr) then
+      write(*, *) '[Error]: Failed to write xi variable!'
+      stop 1
+    end if
+
     ierr = nf90_put_var(file_id, rho_var_id, rho(1:nx))
     if (ierr /= nf90_noerr) then
       write(*, *) '[Error]: Failed to write rho variable!'
+      stop 1
+    end if
+
+    ierr = nf90_put_var(file_id, c_star_var_id, c_star(1:nx+1))
+    if (ierr /= nf90_noerr) then
+      write(*, *) '[Error]: Failed to write c_star variable!'
       stop 1
     end if
 
