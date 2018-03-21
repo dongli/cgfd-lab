@@ -146,16 +146,6 @@ contains
 
   end subroutine full_boundary_condition
 
-  subroutine half_boundary_condition(x)
-
-    real, intent(inout) :: x(1:nx+1)
-
-    integer i
-
-    x(1) = x(nx+1)
-
-  end subroutine half_boundary_condition
-
   subroutine crank_nicolson(rho)
 
     real, intent(in) :: rho(1-ns:nx+ns)
