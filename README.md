@@ -34,6 +34,13 @@ $ ncl ../../tools/plot_adv_1d.ncl scheme=\"upwind\"
 - CMake (for generating Makefile)
 - NCL (for plotting)
 
+If you encounter difficulties to fulfill the requirement, you may use Docker image which we have created by:
+
+```
+$ docker pull dongli/iap-cgfd-adv-cases:0.0.1
+$ docker run -it dongli/iap-cgfd-adv-cases:0.0.1
+```
+
 # Authors
 
 - Li Dong <dongli@lasg.iap.ac.cn>
