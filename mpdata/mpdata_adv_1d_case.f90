@@ -16,35 +16,31 @@ program mpdata_adv_1d_case
   real, allocatable :: flux(:)      ! Flux at cell interfaces
   real, allocatable :: uc(:)        ! Antidiffusion velocity
   real dx                           ! Cell interval
-  real dt                           ! Time step size
-  integer nx                        ! Cell number
-  integer nt                        ! Integration time step number
+  real :: dt = 1.0                  ! Time step size
+  integer :: nx = 100               ! Cell number
+  integer :: nt = 200               ! Integration time step number
   integer :: iord = 3               ! Scheme order
-
   real :: u = 0.005                 ! Advection speed
   real coef                         ! dt / dx
   real, parameter :: eps = 1.0d-15  ! A small value to avoid divided-by-zero
   integer, parameter :: ns = 1      ! Stencil width
-
-  integer i, time_step, old, new, star
+  integer i
+  integer :: time_step = 0, old = 1, new = 2
   character(256) namelist_path
   logical is_exist
 
-  namelist /params/ nx, nt, dx, dt, iord, u
+  namelist /params/ nx, nt, dt, iord, u
 
   call get_command_argument(1, namelist_path)
   inquire(file=namelist_path, exist=is_exist)
-  if (.not. is_exist) then
-    write(*, *) '[Error]: You need set the namelist path in command line!'
-    stop 1
+  if (is_exist) then
+    open(10, file=namelist_path)
+    read(10, nml=params)
+    close(10)
   end if
 
-  open(10, file=namelist_path)
-  read(10, nml=params)
-  close(10)
-
   allocate(x(nx))
-  allocate(rho(1-ns:nx+ns,0:2))
+  allocate(rho(1-ns:nx+ns,old:new))
   allocate(flux(1:nx+1))
   allocate(uc(1:nx+1))
 
@@ -55,7 +51,6 @@ program mpdata_adv_1d_case
   end do
 
   ! Set initial condition.
-  star = 0; old = 1; new = 2
   do i = 1, nx
     if (x(i) >= 0.05 .and. x(i) <= 0.3) then
       rho(i,old) = 1.0d0
@@ -68,7 +63,6 @@ program mpdata_adv_1d_case
 
   ! Run integration.
   coef = dt / dx
-  time_step = 0
   print *, time_step, sum(rho(1:nx,old))
   do while (time_step < nt)
     call mpdata(rho(:,old), rho(:,new))
@@ -156,7 +150,7 @@ contains
     character(30) file_name
     integer file_id, time_dim_id, time_var_id, x_dim_id, x_var_id, rho_var_id, ierr
 
-    write(file_name, "('mpdata.', I3.3, '.nc')") time_step
+    write(file_name, "('mpdata.', I3.3, '.', I4.4, '.nc')") nx, time_step
 
     ierr = nf90_create(file_name, nf90_clobber, file_id)
     if (ierr /= nf90_noerr) then

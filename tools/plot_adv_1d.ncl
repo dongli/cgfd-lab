@@ -31,7 +31,6 @@ begin
     exit
   end if
 
-  file_prefix = available_schemes(scheme_index, 0)
   title = available_schemes(scheme_index, 1)
   root = "."
   start_time = 0
@@ -41,8 +40,13 @@ begin
   if (.not. isdefined("time_step")) then
     time_step = 1
   end if
-  time_stamp = "%3.3d"
+  time_stamp = "%4.4d"
 
+  if (.not. isdefined("nx")) then
+    nx = 100
+  end if
+
+  file_prefix = available_schemes(scheme_index, 0) + "." + sprinti("%3.3d", nx)
   fs = systemfunc("for (( i = "+start_time+"; i <= "+end_time+"; "+ \
     "i = i+"+time_step+" )); "+ \
     "do printf '"+root+"/"+file_prefix+"."+time_stamp+".nc\n' $i; done")

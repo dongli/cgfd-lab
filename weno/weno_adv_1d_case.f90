@@ -43,10 +43,9 @@ program weno_adv_1d_case
   real, allocatable :: flux_m_c(:)  ! Negative flux at cell centers
   real, allocatable :: flux_i(:)    ! Final flux at cell interfaces
   real dx                           ! Cell interval
-  real dt                           ! Time step size
-  integer nx                        ! Cell number
-  integer nt                        ! Integration time step number
-
+  real :: dt = 1.0                  ! Time step size
+  integer :: nx = 100               ! Cell number
+  integer :: nt = 200               ! Integration time step number
   real :: u = 0.005                 ! Advection speed
   real coef                         ! dt / dx
   real, parameter :: eps = 1.0d-6   ! A small value to avoid divided-by-zero
@@ -56,18 +55,15 @@ program weno_adv_1d_case
   character(256) namelist_path
   logical is_exist
 
-  namelist /params/ nx, nt, dx, dt, u
+  namelist /params/ nx, nt, dt, u
 
   call get_command_argument(1, namelist_path)
   inquire(file=namelist_path, exist=is_exist)
-  if (.not. is_exist) then
-    write(*, *) '[Error]: You need set the namelist path in command line!'
-    stop 1
+  if (is_exist) then
+    open(10, file=namelist_path)
+    read(10, nml=params)
+    close(10)
   end if
-
-  open(10, file=namelist_path)
-  read(10, nml=params)
-  close(10)
 
   allocate(x(nx))
   allocate(rho(1-ns:nx+ns,2))
@@ -220,7 +216,7 @@ contains
     character(30) file_name
     integer file_id, time_dim_id, time_var_id, x_dim_id, x_var_id, rho_var_id, ierr
 
-    write(file_name, "('weno.', I3.3, '.nc')") time_step
+    write(file_name, "('weno.', I3.3, '.', I4.4, '.nc')") nx, time_step
 
     ierr = nf90_create(file_name, nf90_clobber, file_id)
     if (ierr /= nf90_noerr) then

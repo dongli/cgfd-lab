@@ -45,7 +45,7 @@ program ffsl_adv_2d_case
   character(256) namelist_path
   logical is_exist
 
-  namelist /params/ nx, dx, ny, dy, nt, dt, flux_type, limiter_type
+  namelist /params/ nx, ny, nt, dt, flux_type, limiter_type
 
   call get_command_argument(1, namelist_path)
   inquire(file=namelist_path, exist=is_exist)
