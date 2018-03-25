@@ -1,0 +1,7 @@
+&params
+nt = 200
+nx = 100
+dt = 1
+flux_type = 'ppm'
+limiter_type = 'mono'
+/
