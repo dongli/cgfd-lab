@@ -59,7 +59,7 @@ program leap_frog_adv_1d_case
   call output(rho(:,old))
 
   ! Run integration.
-  coef = dt / dx
+  coef = 2 * dt / dx
   print *, time_step, sum(rho(1:nx,old))
   do while (time_step < nt)
     call leap_frog(rho(:,middle))
