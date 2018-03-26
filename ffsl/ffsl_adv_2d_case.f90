@@ -33,10 +33,10 @@ program ffsl_adv_2d_case
   real, allocatable :: div_y(:,:)         ! Divergence component along y axis
   real dx                                 ! Cell interval along x axis
   real dy                                 ! Cell interval along y axis
-  real :: dt = 0.5                        ! Time step size
+  real :: dt = 0.25                       ! Time step size
   integer :: nx = 100                     ! Cell number along x axis
   integer :: ny = 100                     ! Cell number along y axis
-  integer :: nt = 418                     ! Integration time step number
+  integer :: nt = 836                     ! Integration time step number
   character(10) :: flux_type = 'ppm'      ! Available flux types: upwind, van_leer, ppm
   character(10) :: limiter_type = 'mono'  ! Available limiter types: none, mono, pd
   real, parameter :: omega = 0.03         ! Rotation angular speed
@@ -205,7 +205,7 @@ contains
     real, intent(in) :: rho_x(1-ns:nx+ns,1-ns:ny+ns)
     real, intent(in) :: rho_y(1-ns:nx+ns,1-ns:ny+ns)
 
-    real c, s1, s2, ds, ds2, ds3
+    real c, s1, s2, ds, ds2, ds3, max_cfl
     integer i, j, k
 
     if (flux_type == 'ppm') then
@@ -224,10 +224,12 @@ contains
       call full_boundary_condition(rho_y6)
     end if
 
+    max_cfl = -1
     ! Along x axis
     do j = 1, ny
       do i = 1, nx
         c = u(i,j) * dt / dx
+        max_cfl = max(c, max_cfl)
         k = merge(i - 1, i, c > 0)
         select case (flux_type)
         case ('upwind')
@@ -255,6 +257,7 @@ contains
     do j = 1, ny
       do i = 1, nx
         c = v(i,j) * dt / dy
+        max_cfl = max(c, max_cfl)
         k = merge(j - 1, j, c > 0)
         select case (flux_type)
         case ('upwind')
@@ -278,6 +281,7 @@ contains
       end do
     end do
     call half_y_boundary_condition(flux_y)
+    print *, max_cfl
 
   end subroutine ffsl
 
@@ -337,8 +341,8 @@ contains
     case ('none')
       mismatch = df
     case ('mono')
-      df_min = f - min(fm1, f, fp1)
-      df_max = max(fm1, f, fp1) - f
+      df_min = 2 * (f - min(fm1, f, fp1))
+      df_max = 2 * (max(fm1, f, fp1) - f)
       mismatch = sign(min(abs(df), df_min, df_max), df)
 
       ! The following codes are (1.8) from Collela and Woodward (1984). It should be equivalent with the above.
@@ -348,7 +352,7 @@ contains
       !   mismatch = 0.0
       ! end if
     case ('pd')
-      mismatch = sign(min(abs(df), f), df)
+      mismatch = sign(min(abs(df), 2 * f), df)
     end select
 
   end function mismatch

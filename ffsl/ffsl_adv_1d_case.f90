@@ -209,8 +209,8 @@ contains
     case ('none')
       mismatch = df
     case ('mono')
-      df_min = f - min(fm1, f, fp1)
-      df_max = max(fm1, f, fp1) - f
+      df_min = 2 * (f - min(fm1, f, fp1))
+      df_max = 2 * (max(fm1, f, fp1) - f)
       mismatch = sign(min(abs(df), df_min, df_max), df)
 
       ! The following codes are (1.8) from Collela and Woodward (1984). It should be equivalent with the above.
@@ -220,7 +220,7 @@ contains
       !   mismatch = 0.0
       ! end if
     case ('pd')
-      mismatch = sign(min(abs(df), f), df)
+      mismatch = sign(min(abs(df), 2 * f), df)
     end select
 
   end function mismatch
