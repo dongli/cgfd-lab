@@ -24,7 +24,6 @@ program ffsl_adv_1d_case
   character(10) :: flux_type = 'ppm'      ! Available flux types: upwind, van_leer, ppm
   character(10) :: limiter_type = 'mono'  ! Available limiter types: none, mono, pd
   real :: u = 0.005                       ! Advection speed
-  real coef                               ! dt / dx
   integer, parameter :: ns = 2            ! Stencil width
   integer i
   integer :: time_step = 0, old = 1, new = 2
@@ -66,7 +65,6 @@ program ffsl_adv_1d_case
   call output(rho(:,old))
 
   ! Run integration.
-  coef = dt / dx
   print *, time_step, sum(rho(1:nx,old))
   do while (time_step < nt)
     call ffsl(rho(:,old))
@@ -107,8 +105,6 @@ contains
 
     real, intent(inout) :: x(1:nx+1)
 
-    integer i
-
     x(nx+1) = x(1)
 
   end subroutine half_boundary_condition
@@ -133,7 +129,7 @@ contains
 
     do i = 1, nx
       flux(i) = 0
-      cfl = u * coef
+      cfl = u * dt / dx
       K = int(cfl)
       c = cfl - K
       ! Calculate integer flux.
@@ -153,7 +149,7 @@ contains
         flux(i) = flux(i) + c * rho(l)
       case ('van_leer')
         drho(l) = mismatch(rho(l-1), rho(l), rho(l+1))
-        flux(i) = flux(i) + c * (rho(l) + (sign(1.0, cfl) - c) * drho(l) * 0.5d0)
+        flux(i) = flux(i) + c * (rho(l) + (sign(1.0, cfl) - c) * drho(l) * 0.5)
       case ('ppm')
         if (cfl >= 0) then
           s1 = 1 - abs(c)
@@ -180,7 +176,7 @@ contains
     real, intent(in) :: fp1
     real, intent(in) :: fp2
     real, intent(out) :: fl
-    real, intent(inout) :: df
+    real, intent(out) :: df
     real, intent(out) :: f6
 
     real dfl, dfr, fr
@@ -189,10 +185,12 @@ contains
     dfl = mismatch(fm2, fm1, f  )
     df  = mismatch(fm1, f,   fp1)
     dfr = mismatch(f,   fp1, fp2)
-    fl = 0.5d0 * (fm1 + f) + (dfl - df) / 3.0d0
-    fr = 0.5d0 * (fp1 + f) + (df - dfr) / 3.0d0
-    fl = f - sign(min(abs(2 * df), abs(fl - f)), df)
-    fr = f + sign(min(abs(2 * df), abs(fr - f)), df)
+    ! Why (B2) in Lin (2004) divide (dfl - df) and (df - dfr) by 3?
+    fl = 0.5 * (fm1 + f) + (dfl - df) / 6.0
+    fr = 0.5 * (fp1 + f) + (df - dfr) / 6.0
+    ! Why (B3) and (B4) in Lin (2004) multiply df by 2?
+    fl = f - sign(min(abs(df), abs(fl - f)), df)
+    fr = f + sign(min(abs(df), abs(fr - f)), df)
     f6 = 6 * f - 3 * (fl + fr)
     df = fr - fl
 
@@ -213,9 +211,16 @@ contains
     case ('mono')
       df_min = f - min(fm1, f, fp1)
       df_max = max(fm1, f, fp1) - f
-      mismatch = sign(min(abs(0.5 * df), df_min, df_max), df)
+      mismatch = sign(min(abs(df), df_min, df_max), df)
+
+      ! The following codes are (1.8) from Collela and Woodward (1984). It should be equivalent with the above.
+      ! if ((fp1 - f) * (f - fm1) > 0) then
+      !   mismatch = sign(min(abs(df), abs(f - fm1), abs(f - fp1)), df)
+      ! else
+      !   mismatch = 0.0
+      ! end if
     case ('pd')
-      mismatch = sign(min(abs(df), 2.0 * f), df)
+      mismatch = sign(min(abs(df), f), df)
     end select
 
   end function mismatch

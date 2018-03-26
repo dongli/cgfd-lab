@@ -25,7 +25,7 @@ begin
   root = "."
   start_time = 0
   if (.not. isdefined("end_time")) then
-    end_time = 126
+    end_time = 263
   end if
   if (.not. isdefined("time_step")) then
     time_step = 1

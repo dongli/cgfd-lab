@@ -50,8 +50,8 @@ program weno_adv_1d_case
   real coef                         ! dt / dx
   real, parameter :: eps = 1.0d-6   ! A small value to avoid divided-by-zero
   integer, parameter :: ns = 3      ! Stencil width
-
-  integer i, time_step, old, new
+  integer i
+  integer :: time_step = 0, old = 1, new = 2
   character(256) namelist_path
   logical is_exist
 
@@ -78,7 +78,6 @@ program weno_adv_1d_case
   end do
 
   ! Set initial condition.
-  old = 1; new = 2
   do i = 1, nx
     if (x(i) >= 0.05 .and. x(i) <= 0.3) then
       rho(i,old) = 1.0d0
@@ -91,7 +90,6 @@ program weno_adv_1d_case
 
   ! Run integration.
   coef = dt / dx
-  time_step = 0
   print *, time_step, sum(rho(1:nx,old))
   do while (time_step < nt)
     ! RK 1st stage

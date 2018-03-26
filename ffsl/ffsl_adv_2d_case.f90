@@ -4,6 +4,9 @@
 ! Li Dong <dongli@lasg.iap.ac.cn>
 !
 ! - 2018-03-24: Initial creation.
+! - 2018-03-25: Remove flux splitting (i.e. integer and fractional flux parts),
+!               because in 2D this is not very helpful to increase stability,
+!               we are still limited by CFL condition.
 
 program ffsl_adv_2d_case
 
@@ -30,10 +33,10 @@ program ffsl_adv_2d_case
   real, allocatable :: div_y(:,:)         ! Divergence component along y axis
   real dx                                 ! Cell interval along x axis
   real dy                                 ! Cell interval along y axis
-  real :: dt = 0.8                        ! Time step size
+  real :: dt = 0.5                        ! Time step size
   integer :: nx = 100                     ! Cell number along x axis
   integer :: ny = 100                     ! Cell number along y axis
-  integer :: nt = 263                     ! Integration time step number
+  integer :: nt = 418                     ! Integration time step number
   character(10) :: flux_type = 'ppm'      ! Available flux types: upwind, van_leer, ppm
   character(10) :: limiter_type = 'mono'  ! Available limiter types: none, mono, pd
   real, parameter :: omega = 0.03         ! Rotation angular speed
@@ -202,9 +205,8 @@ contains
     real, intent(in) :: rho_x(1-ns:nx+ns,1-ns:ny+ns)
     real, intent(in) :: rho_y(1-ns:nx+ns,1-ns:ny+ns)
 
-    real cfl, c
-    real s1, s2, ds, ds2, ds3
-    integer i, j, K, kk, l
+    real c, s1, s2, ds, ds2, ds3
+    integer i, j, k
 
     if (flux_type == 'ppm') then
       ! Calculate the subgrid distribution of tracer.
@@ -225,40 +227,26 @@ contains
     ! Along x axis
     do j = 1, ny
       do i = 1, nx
-        flux_x(i,j) = 0
-        cfl = u(i,j) * dt / dx
-        K = int(cfl)
-        c = cfl - K
-        ! Calculate integer flux.
-        if (cfl > 0) then
-          do kk = 1, K
-            flux_x(i,j) = flux_x(i,j) + rho_x(i-kk,j)
-          end do
-        else if (cfl < 0) then
-          do kk = 1, -K
-            flux_x(i,j) = flux_x(i,j) - rho_x(i+kk-1,j)
-          end do
-        end if
-        l = merge(i - K - 1, i - K, cfl > 0)
-        ! Calculate fractional flux.
+        c = u(i,j) * dt / dx
+        k = merge(i - 1, i, c > 0)
         select case (flux_type)
         case ('upwind')
-          flux_x(i,j) = flux_x(i,j) + c * rho_x(l,j)
+          flux_x(i,j) = c * rho_x(k,j)
         case ('van_leer')
-          drho_x(l,j) = mismatch(rho_x(l-1,j), rho_x(l,j), rho_x(l+1,j))
-          flux_x(i,j) = flux_x(i,j) + c * (rho_x(l,j) + (sign(1.0, cfl) - c) * drho_x(l,j) * 0.5d0)
+          drho_x(k,j) = mismatch(rho_x(k-1,j), rho_x(k,j), rho_x(k+1,j))
+          flux_x(i,j) = c * (rho_x(k,j) + (sign(1.0, c) - c) * drho_x(k,j) * 0.5d0)
         case ('ppm')
-          if (cfl >= 0) then
+          if (c >= 0) then
             s1 = 1 - abs(c)
             s2 = 1
-          else if (cfl < 0) then
+          else if (c < 0) then
             s1 = 0
             s2 = abs(c)
           end if
           ds = s2 - s1
           ds2 = s2**2 - s1**2
           ds3 = s2**3 - s1**3
-          flux_x(i,j) = flux_x(i,j) + sign(rho_xl(l,j) * ds + 0.5 * drho_x(l,j) * ds2 + rho_x6(l,j) * (0.5 * ds2 - ds3 / 3.0), cfl)
+          flux_x(i,j) = sign(rho_xl(k,j) * ds + 0.5 * drho_x(k,j) * ds2 + rho_x6(k,j) * (0.5 * ds2 - ds3 / 3.0), c)
         end select
       end do
     end do
@@ -266,40 +254,26 @@ contains
     ! Along y axis
     do j = 1, ny
       do i = 1, nx
-        flux_y(i,j) = 0
-        cfl = v(i,j) * dt / dy
-        K = int(cfl)
-        c = cfl - K
-        ! Calculate integer flux.
-        if (cfl > 0) then
-          do kk = 1, K
-            flux_y(i,j) = flux_y(i,j) + rho_y(i,j-kk)
-          end do
-        else if (cfl < 0) then
-          do kk = 1, -K
-            flux_y(i,j) = flux_y(i,j) - rho_y(i,j+kk-1)
-          end do
-        end if
-        l = merge(j - K - 1, j - K, cfl > 0)
-        ! Calculate fractional flux.
+        c = v(i,j) * dt / dy
+        k = merge(j - 1, j, c > 0)
         select case (flux_type)
         case ('upwind')
-          flux_y(i,j) = flux_y(i,j) + c * rho_y(i,l)
+          flux_y(i,j) = c * rho_y(i,k)
         case ('van_leer')
-          drho_y(i,l) = mismatch(rho_y(i,l-1), rho_y(i,l), rho_y(i,l+1))
-          flux_y(i,j) = flux_y(i,j) + c * (rho_y(i,l) + (sign(1.0, cfl) - c) * drho_y(i,l) * 0.5d0)
+          drho_y(i,k) = mismatch(rho_y(i,k-1), rho_y(i,k), rho_y(i,k+1))
+          flux_y(i,j) = c * (rho_y(i,k) + (sign(1.0, c) - c) * drho_y(i,k) * 0.5d0)
         case ('ppm')
-          if (cfl >= 0) then
+          if (c >= 0) then
             s1 = 1 - abs(c)
             s2 = 1
-          else if (cfl < 0) then
+          else if (c < 0) then
             s1 = 0
             s2 = abs(c)
           end if
           ds = s2 - s1
           ds2 = s2**2 - s1**2
           ds3 = s2**3 - s1**3
-          flux_y(i,j) = flux_y(i,j) + sign(rho_yl(i,l) * ds + 0.5 * drho_y(i,l) * ds2 + rho_y6(i,l) * (0.5 * ds2 - ds3 / 3.0), cfl)
+          flux_y(i,j) = sign(rho_yl(i,k) * ds + 0.5 * drho_y(i,k) * ds2 + rho_y6(i,k) * (0.5 * ds2 - ds3 / 3.0), c)
         end select
       end do
     end do
@@ -330,7 +304,7 @@ contains
     real, intent(in) :: fp1
     real, intent(in) :: fp2
     real, intent(out) :: fl
-    real, intent(inout) :: df
+    real, intent(out) :: df
     real, intent(out) :: f6
 
     real dfl, dfr, fr
@@ -365,16 +339,16 @@ contains
     case ('mono')
       df_min = f - min(fm1, f, fp1)
       df_max = max(fm1, f, fp1) - f
-      ! df = 0.25 * (fp1 - fm1) see (B1) in Lin (2004). But it seems the above (df - dfr) / 6.0 should be (dfl - df) / 6.0.
-      mismatch = sign(min(abs(0.5 * df), df_min, df_max), df)
+      mismatch = sign(min(abs(df), df_min, df_max), df)
 
+      ! The following codes are (1.8) from Collela and Woodward (1984). It should be equivalent with the above.
       ! if ((fp1 - f) * (f - fm1) > 0) then
-      !   mismatch = sign(min(abs(mismatch), abs(f - fm1), abs(f - fp1)), mismatch)
+      !   mismatch = sign(min(abs(df), abs(f - fm1), abs(f - fp1)), df)
       ! else
       !   mismatch = 0.0
       ! end if
     case ('pd')
-      mismatch = sign(min(abs(df), 2.0 * f), df)
+      mismatch = sign(min(abs(df), f), df)
     end select
 
   end function mismatch
