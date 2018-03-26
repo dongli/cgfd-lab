@@ -1,9 +1,5 @@
 FROM centos:7
 
-LABEL description="This is an environment for running advection cases."
-LABEL maintainer="Li Dong <dongli@lasg.iap.ac.cn>"
-LABEL version="0.0.1"
-
 RUN yum -y update && \
     yum -y install epel-release https://centos7.iuscommunity.org/ius-release.rpm && \
     yum -y install gcc-gfortran gsl-dev cmake3 make git2u wget && \
@@ -27,6 +23,10 @@ RUN cd /usr/include && \
     cd build && \
     cmake3 .. && \
     make
+
+LABEL description="This is an environment for running advection cases."
+LABEL maintainer="Li Dong <dongli@lasg.iap.ac.cn>"
+LABEL version="0.0.2"
 
 WORKDIR /home/iap-cgfd-adv-cases/build
 ENV NCARG_ROOT=/usr/local
