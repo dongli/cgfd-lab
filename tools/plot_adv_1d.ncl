@@ -47,9 +47,7 @@ begin
   end if
 
   file_prefix = available_schemes(scheme_index, 0) + "." + sprinti("%3.3d", nx)
-  fs = systemfunc("for (( i = "+start_time+"; i <= "+end_time+"; "+ \
-    "i = i+"+time_step+" )); "+ \
-    "do printf '"+root+"/"+file_prefix+"."+time_stamp+".nc\n' $i; done")
+  fs = systemfunc("ls " + root + "/" + file_prefix + ".*.nc | sort")
 
   res = True
   res@gsnDraw = False

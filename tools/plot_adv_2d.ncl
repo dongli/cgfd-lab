@@ -20,7 +20,6 @@ begin
     scheme_index = 0
   end if
 
-  file_prefix = available_schemes(scheme_index, 0)
   title = available_schemes(scheme_index, 1)
   root = "."
   start_time = 0
@@ -32,9 +31,8 @@ begin
   end if
   time_stamp = "%3.3d"
 
-  fs = systemfunc("for (( i = "+start_time+"; i <= "+end_time+"; "+ \
-    "i = i+"+time_step+" )); "+ \
-    "do printf '"+root+"/"+file_prefix+"."+time_stamp+".nc\n' $i; done")
+  file_prefix = available_schemes(scheme_index, 0)
+  fs = systemfunc("ls " + root + "/" + file_prefix + ".*.nc | sort")
 
   wks = gsn_open_wks("pdf", file_prefix)
 
@@ -58,7 +56,7 @@ begin
   res@lbLabelAngleF = 45
   res@tiMainString = title
 
-  do k = 0, dimsizes(fs)-1
+  do k = 0, dimsizes(fs)-1, time_step
     f = addfile(fs(k), "r")
     system("echo 'File "+fs(k)+"' with total mass "+sprintf("%20.10f", sum(f->rho(0,:,:))))
     plot = gsn_csm_contour(wks, f->rho(0,:,:), res)
