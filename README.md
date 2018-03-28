@@ -1,6 +1,6 @@
 # Introduction
 
-This repository contains some classic or practical advection schemes for demonstrating them to first year graduates:
+This repository contains some classic or practical advection schemes for demonstrating them to the first year graduates:
 
 - FTCS (Forward-in-time, centered-in-space)
 - Upwind
@@ -12,6 +12,8 @@ This repository contains some classic or practical advection schemes for demonst
 - TSPAS
 - MPDATA
 - WENO
+- FFSL
+- Semi-Lagrangian
 
 You can download it, and run each schemes by:
 
@@ -22,7 +24,7 @@ $ cd build
 $ cmake ..
 $ make
 $ cd upwind
-$ ./upwind_adv_1d_case.exe ../../upwind/namelist
+$ ./upwind_adv_1d_case.exe
 $ ncl ../../tools/plot_adv_1d.ncl scheme=\"upwind\"
 ```
 
@@ -30,16 +32,23 @@ $ ncl ../../tools/plot_adv_1d.ncl scheme=\"upwind\"
 
 - Fortran compiler (I use `gfortran`)
 - NetCDF library (for outputting data)
-- GSL library (for tridiagonal matrix solver)
+- GSL library (optional for tridiagonal matrix solver)
 - CMake (for generating Makefile)
 - NCL (for plotting)
 
 If you encounter difficulties to fulfill the requirement, you may use Docker image which we have created by:
 
 ```
-$ docker pull dongli/iap-cgfd-adv-cases:0.0.1
-$ docker run -it dongli/iap-cgfd-adv-cases:0.0.1
+$ docker pull dongli/iap-cgfd-adv-cases:0.0.2
+$ docker run -it dongli/iap-cgfd-adv-cases:0.0.2
 ```
+
+# TODO list
+
+Next I would like to do the following things:
+
+- Add 2D upwind, Lax-Wendroff scheme cases
+- Extend TSPAS to 2D and include cross terms
 
 # Authors
 
