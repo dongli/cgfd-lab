@@ -20,6 +20,7 @@ program upwind_adv_1d_case
   integer :: nt = 200               ! Integration time step number
   real :: u = 0.005                 ! Advection speed
   real coef                         ! dt / dx
+  real, parameter :: beta = 1.0     ! Upwind weight
   integer, parameter :: ns = 1      ! Stencil width
   integer i
   integer :: time_step = 0, old = 1, new = 2
@@ -109,7 +110,7 @@ contains
     integer i
 
     do i = 1, nx
-      flux(i+1) = 0.5d0 * (u * (rho(i+1) + rho(i)) - abs(u) * (rho(i+1) - rho(i)))
+      flux(i+1) = 0.5d0 * (u * (rho(i+1) + rho(i)) - beta * abs(u) * (rho(i+1) - rho(i)))
     end do
     call half_boundary_condition(flux)
 
