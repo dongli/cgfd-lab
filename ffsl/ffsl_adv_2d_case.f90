@@ -7,6 +7,8 @@
 ! - 2018-03-25: Remove flux splitting (i.e. integer and fractional flux parts),
 !               because in 2D this is not very helpful to increase stability,
 !               we are still limited by CFL condition.
+! - 2019-03-18: Improve readability by add inner and outer operators comments
+!               and add flux_x and flux_y arguments to subroutine ffsl.
 
 program ffsl_adv_2d_case
 
@@ -110,7 +112,9 @@ program ffsl_adv_2d_case
   ! Run integration.
   print *, time_step, sum(rho(1:nx,1:ny,old))
   do while (time_step < nt)
-    call ffsl(rho(:,:,old), rho(:,:,old))
+    ! --------------------------------------------------------------------------
+    ! Run inner operators.
+    call ffsl(rho(:,:,old), rho(:,:,old), flux_x, flux_y)
     call divergence()
     ! Subtract divergence terms from flux to form advective operators.
     do j = 1, ny
@@ -132,7 +136,9 @@ program ffsl_adv_2d_case
     end do
     call full_boundary_condition(rho_x)
     call full_boundary_condition(rho_y)
-    call ffsl(rho_y, rho_x)
+    ! --------------------------------------------------------------------------
+    ! Run outer operators.
+    call ffsl(rho_y, rho_x, flux_x, flux_y)
     do j = 1, ny
       do i = 1, nx
         rho(i,j,new) = rho(i,j,old) - (flux_x(i+1,j) - flux_x(i,j)) - (flux_y(i,j+1) - flux_y(i,j))
@@ -200,10 +206,12 @@ contains
 
   end subroutine half_y_boundary_condition
 
-  subroutine ffsl(rho_x, rho_y)
+  subroutine ffsl(rho_x, rho_y, flux_x, flux_y)
 
     real, intent(in) :: rho_x(1-ns:nx+ns,1-ns:ny+ns)
     real, intent(in) :: rho_y(1-ns:nx+ns,1-ns:ny+ns)
+    real, intent(out) :: flux_x(1:nx+1,ny)
+    real, intent(out) :: flux_y(nx,1:ny+1)
 
     real c, s1, s2, ds, ds2, ds3, max_cfl
     integer i, j, k
