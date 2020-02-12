@@ -1,0 +1,6 @@
+add_executable(linear_swm_a_grid.exe linear_swm_common_mod.F90 linear_swm_a_grid.F90)
+target_link_libraries(linear_swm_a_grid.exe netcdff)
+add_executable(linear_swm_b_grid.exe linear_swm_common_mod.F90 linear_swm_b_grid.F90)
+target_link_libraries(linear_swm_b_grid.exe netcdff)
+add_executable(linear_swm_c_grid.exe linear_swm_common_mod.F90 linear_swm_c_grid.F90)
+target_link_libraries(linear_swm_c_grid.exe netcdff)
