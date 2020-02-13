@@ -1,0 +1,2 @@
+add_executable(tspas_adv_1d_case.exe tspas_adv_1d_case.f90)
+target_link_libraries(tspas_adv_1d_case.exe netcdff)

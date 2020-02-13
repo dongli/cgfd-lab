@@ -23,9 +23,9 @@ $ mkdir build
 $ cd build
 $ cmake ..
 $ make
-$ cd upwind
+$ cd advection/upwind
 $ ./upwind_adv_1d_case.exe
-$ ncl ../../tools/plot_adv_1d.ncl scheme=\"upwind\"
+$ ncl ../../../tools/plot_adv_1d.ncl scheme=\"upwind\"
 ```
 
 # Software dependencies
@@ -35,13 +35,6 @@ $ ncl ../../tools/plot_adv_1d.ncl scheme=\"upwind\"
 - GSL library (optional for tridiagonal matrix solver)
 - CMake (for generating Makefile)
 - NCL (for plotting)
-
-If you encounter difficulties to fulfill the requirement, you may use Docker image which we have created by:
-
-```
-$ docker pull dongli/iap-cgfd-adv-cases:0.0.2
-$ docker run -it dongli/iap-cgfd-adv-cases:0.0.2
-```
 
 # TODO list
 

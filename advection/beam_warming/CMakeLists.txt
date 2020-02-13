@@ -1,0 +1,2 @@
+add_executable(beam_warming_adv_1d_case.exe beam_warming_adv_1d_case.f90)
+target_link_libraries(beam_warming_adv_1d_case.exe netcdff)

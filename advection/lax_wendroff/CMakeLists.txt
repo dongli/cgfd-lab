@@ -1,0 +1,2 @@
+add_executable(lax_wendroff_adv_1d_case.exe lax_wendroff_adv_1d_case.f90)
+target_link_libraries(lax_wendroff_adv_1d_case.exe netcdff)

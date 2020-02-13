@@ -1,0 +1,2 @@
+add_executable(ftcs_adv_1d_case.exe ftcs_adv_1d_case.f90)
+target_link_libraries(ftcs_adv_1d_case.exe netcdff)
