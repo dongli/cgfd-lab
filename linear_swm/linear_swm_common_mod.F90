@@ -70,40 +70,42 @@ contains
 
     integer i, j
 
+    print *, hw
+    stop
     ! u
-    do i = lbound(u, 1), hw
+    do i = lbound(u, 1), 0
       u(i,:,k) = u(nx+i,:,k)
     end do
     do i = nx + 1, ubound(u, 1)
       u(i,:,k) = u(i-nx,:,k)
     end do
-    do j = lbound(u, 2), hw
+    do j = lbound(u, 2), 0
       u(:,j,k) = u(:,ny+j,k)
     end do
     do j = ny + 1, ubound(u, 2)
       u(:,j,k) = u(:,j-ny,k)
     end do
     ! v
-    do i = lbound(v, 1), hw
+    do i = lbound(v, 1), 0
       v(i,:,k) = v(nx+i,:,k)
     end do
     do i = nx + 1, ubound(v, 1)
       v(i,:,k) = v(i-nx,:,k)
     end do
-    do j = lbound(v, 2), hw
+    do j = lbound(v, 2), 0
       v(:,j,k) = v(:,ny+j,k)
     end do
     do j = ny + 1, ubound(v, 2)
       v(:,j,k) = v(:,j-ny,k)
     end do
     ! h
-    do i = lbound(h, 1), hw
+    do i = lbound(h, 1), 0
       h(i,:,k) = h(nx+i,:,k)
     end do
     do i = nx + 1, ubound(h, 1)
       h(i,:,k) = h(i-nx,:,k)
     end do
-    do j = lbound(h, 2), hw
+    do j = lbound(h, 2), 0
       h(:,j,k) = h(:,ny+j,k)
     end do
     do j = ny + 1, ubound(h, 2)
