@@ -70,8 +70,6 @@ contains
 
     integer i, j
 
-    print *, hw
-    stop
     ! u
     do i = lbound(u, 1), 0
       u(i,:,k) = u(nx+i,:,k)

@@ -11,7 +11,7 @@ program linear_swm_a_grid
   call output(old)
 
   dt = dx / sqrt(g * h0) * 0.5_rp
-  do while (time_step < 10)
+  do while (time_step < 20)
     call run_swm(old, new)
     call output(new)
     call time_advance()
