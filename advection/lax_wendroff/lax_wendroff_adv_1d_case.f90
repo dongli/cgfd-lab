@@ -136,71 +136,26 @@ contains
     real, intent(in) :: rho(1-ns:nx+ns)
 
     character(30) file_name
-    integer file_id, time_dim_id, time_var_id, x_dim_id, x_var_id, rho_var_id, ierr
+    integer ncid, time_dimid, time_varid, x_dimid, x_varid, rho_varid, ierr
 
     write(file_name, "('lax_wendroff.', I3.3, '.', I4.4, '.nc')") nx, time_step
 
-    ierr = nf90_create(file_name, nf90_clobber, file_id)
-    if (ierr /= nf90_noerr) then
-      write(*, *) '[Error]: Failed to create output file!'
-      stop 1
-    end if
+    ierr = NF90_CREATE(file_name, NF90_CLOBBER, ncid)
+    ierr = NF90_PUT_ATT(ncid, NF90_GLOBAL, 'scheme', 'Lax-Wendroff')
 
-    ierr = nf90_def_dim(file_id, 'time', nf90_unlimited, time_dim_id)
-    if (ierr /= nf90_noerr) then
-      write(*, *) '[Error]: Failed to define time dimension!'
-      stop 1
-    end if
+    ierr = NF90_DEF_DIM(ncid, 'time', NF90_UNLIMITED, time_dimid)
+    ierr = NF90_DEF_VAR(ncid, 'time', NF90_INT, [time_dimid], time_varid)
+    ierr = NF90_DEF_DIM(ncid, 'x', nx, x_dimid)
+    ierr = NF90_DEF_VAR(ncid, 'x', NF90_FLOAT, [x_dimid], x_varid)
+    ierr = NF90_DEF_VAR(ncid, 'rho', NF90_FLOAT, [x_dimid, time_dimid], rho_varid)
 
-    ierr = nf90_def_var(file_id, 'time', nf90_int, [time_dim_id], time_var_id)
-    if (ierr /= nf90_noerr) then
-      write(*, *) '[Error]: Failed to define time variable!'
-      stop 1
-    end if
+    ierr = NF90_ENDDEF(ncid)
 
-    ierr = nf90_def_dim(file_id, 'x', nx, x_dim_id)
-    if (ierr /= nf90_noerr) then
-      write(*, *) '[Error]: Failed to define x dimension!'
-      stop 1
-    end if
+    ierr = NF90_PUT_VAR(ncid, time_varid, time_step)
+    ierr = NF90_PUT_VAR(ncid, x_varid, x)
+    ierr = NF90_PUT_VAR(ncid, rho_varid, rho(1:nx))
 
-    ierr = nf90_def_var(file_id, 'x', nf90_float, [x_dim_id], x_var_id)
-    if (ierr /= nf90_noerr) then
-      write(*, *) '[Error]: Failed to define x variable!'
-      stop 1
-    end if
-
-    ierr = nf90_def_var(file_id, 'rho', nf90_float, [x_dim_id, time_dim_id], rho_var_id)
-    if (ierr /= nf90_noerr) then
-      write(*, *) '[Error]: Failed to define rho variable!'
-      stop 1
-    end if
-
-    ierr = nf90_enddef(file_id)
-
-    ierr = nf90_put_var(file_id, time_var_id, time_step)
-    if (ierr /= nf90_noerr) then
-      write(*, *) '[Error]: Failed to write time variable!'
-      stop 1
-    end if
-
-    ierr = nf90_put_var(file_id, x_var_id, x)
-    if (ierr /= nf90_noerr) then
-      write(*, *) '[Error]: Failed to write x variable!'
-      stop 1
-    end if
-
-    ierr = nf90_put_var(file_id, rho_var_id, rho(1:nx))
-    if (ierr /= nf90_noerr) then
-      write(*, *) '[Error]: Failed to write rho variable!'
-      stop 1
-    end if
-
-    ierr = nf90_close(file_id)
-    if (ierr /= nf90_noerr) then
-      write(*, *) '[Error]: Failed to close file!'
-      stop 1
-    end if
+    ierr = NF90_CLOSE(ncid)
 
   end subroutine output
 
