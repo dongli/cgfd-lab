@@ -23,11 +23,33 @@
 !                                       |+
 !                                     i+1/2
 !
+! First, define a function h(x) from flux f(x):
+!
+!   _      1   / x_{i+1/2}
+!   h_i = ---  |           h(𝜉) d𝜉 = f(x_i)
+!         d x  |
+!              / x_{i-1/2}
+!
+! which is known. Take derivative respect to x on both sides
+!
+!    1                                  df |
+!   --- (h(x_{i+1/2}) - h(x_{i-1/2})) = -- |
+!   d x                                 dx | x=x_i
+!
+! then
+!
+!   ^
+!   f_{i+1/2} = h(x_{i+1/2})
+!
+! References:
+!
+! - Chi-Wang Shu, 2009: High Order Weighted Essentially Non-Oscillatory Schemes for Convection Dominated Problems. SIAM Rev., 51(1).
+!
 ! Li Dong <dongli@lasg.iap.ac.cn>
 !
 ! - 2018-03-18: Initial creation.
 
-program weno_adv_1d_case
+program weno_adv_fd_1d_case
 
   use netcdf
 
@@ -151,6 +173,9 @@ contains
 
     real, parameter :: c1 = 13.0d0 / 12.0d0
     real, parameter :: c2 = 0.25d0
+    real, parameter :: p1(3) = [ 1.0d0 / 3.0d0, -7.0d0 / 6.0d0, 11.0d0 / 6.0d0]
+    real, parameter :: p2(3) = [-1.0d0 / 6.0d0,  5.0d0 / 6.0d0,  1.0d0 / 3.0d0]
+    real, parameter :: p3(3) = [ 1.0d0 / 3.0d0,  5.0d0 / 6.0d0, -1.0d0 / 6.0d0]
     real, parameter :: gamma_p(3) = [1.0d0 / 10.0d0, 3.0d0 / 5.0d0, 3.0d0 / 10.0d0]
     real, parameter :: gamma_m(3) = [3.0d0 / 10.0d0, 3.0d0 / 5.0d0, 1.0d0 / 10.0d0]
 
@@ -173,30 +198,30 @@ contains
     do i = 1, nx
       ! Positive flux at cell interfaces
       ! - Calculate flux at interfaces for each stencil.
-      flux_s_i(1) = (2 * flux_p_c(i-2) - 7 * flux_p_c(i-1) + 11 * flux_p_c(i  )) / 6.0d0
-      flux_s_i(2) = (  - flux_p_c(i-1) + 5 * flux_p_c(i  ) +  2 * flux_p_c(i+1)) / 6.0d0
-      flux_s_i(3) = (2 * flux_p_c(i  ) + 5 * flux_p_c(i+1)      - flux_p_c(i+2)) / 6.0d0
+      flux_s_i(1) = sum(p1 * flux_p_c(i-2:i  ))
+      flux_s_i(2) = sum(p2 * flux_p_c(i-1:i+1))
+      flux_s_i(3) = sum(p3 * flux_p_c(i  :i+2))
       ! - Calculate smooth indicators for each stencil regarding cell centers.
       beta(1) = c1 * (flux_p_c(i-2) - 2 * flux_p_c(i-1) + flux_p_c(i  ))**2 + c2 * (flux_p_c(i-2) - 4 * flux_p_c(i-1) + 3 * flux_p_c(i))**2
       beta(2) = c1 * (flux_p_c(i-1) - 2 * flux_p_c(i  ) + flux_p_c(i+1))**2 + c2 * (flux_p_c(i-1) - flux_p_c(i+1))**2
       beta(3) = c1 * (flux_p_c(i  ) - 2 * flux_p_c(i+1) + flux_p_c(i+2))**2 + c2 * (flux_p_c(i+2) - 4 * flux_p_c(i+1) + 3 * flux_p_c(i))**2
       ! - Calculate stencil linear combination weights considering smooth indicators.
-      wgt(:) = gamma_p(:) / (eps + beta(:))**2
-      wgt(:) = wgt(:) / sum(wgt)
-      flux_p_i = sum(wgt(:) * flux_s_i(:))
+      wgt = gamma_p / (eps + beta(:))**2
+      wgt = wgt / sum(wgt)
+      flux_p_i = sum(wgt * flux_s_i(:))
       ! Negative flux at cell interfaces
       ! - Calculate flux at interfaces for each stencil.
-      flux_s_i(1) = (2 * flux_m_c(i+1) + 5 * flux_m_c(i  )      - flux_m_c(i-1)) / 6.0d0
-      flux_s_i(2) = (  - flux_m_c(i+2) + 5 * flux_m_c(i+1) +  2 * flux_m_c(i  )) / 6.0d0
-      flux_s_i(3) = (2 * flux_m_c(i+3) - 7 * flux_m_c(i+2) + 11 * flux_m_c(i+1)) / 6.0d0
+      flux_s_i(1) = sum(p3 * flux_m_c(i+1:i-1:-1))
+      flux_s_i(2) = sum(p2 * flux_m_c(i+2:i  :-1))
+      flux_s_i(3) = sum(p1 * flux_m_c(i+3:i+1:-1))
       ! - Calculate smooth indicators for each stencil regarding cell centers.
       beta(1) = c1 * (flux_m_c(i-1) - 2 * flux_m_c(i  ) + flux_m_c(i+1))**2 + c2 * (flux_m_c(i-1) - 4 * flux_m_c(i  ) + 3 * flux_m_c(i+1))**2
       beta(2) = c1 * (flux_m_c(i  ) - 2 * flux_m_c(i+1) + flux_m_c(i+2))**2 + c2 * (flux_m_c(i  ) - flux_m_c(i+2))**2
       beta(3) = c1 * (flux_m_c(i+1) - 2 * flux_m_c(i+2) + flux_m_c(i+3))**2 + c2 * (flux_m_c(i+3) - 4 * flux_m_c(i+2) + 3 * flux_m_c(i+1))**2
       ! - Calculate stencil linear combination weights considering smooth indicators.
-      wgt(:) = gamma_m(:) / (eps + beta(:))**2
-      wgt(:) = wgt(:) / sum(wgt)
-      flux_m_i = sum(wgt(:) * flux_s_i(:))
+      wgt = gamma_m / (eps + beta(:))**2
+      wgt = wgt / sum(wgt)
+      flux_m_i = sum(wgt * flux_s_i(:))
 
       flux_i(i+1) = flux_p_i + flux_m_i
     end do
@@ -232,4 +257,4 @@ contains
 
   end subroutine output
 
-end program weno_adv_1d_case
+end program weno_adv_fd_1d_case
