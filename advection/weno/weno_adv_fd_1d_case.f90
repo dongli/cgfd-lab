@@ -51,210 +51,151 @@
 
 program weno_adv_fd_1d_case
 
-  use netcdf
+  use adv_1d_square_case_mod
 
   implicit none
 
-  real, allocatable :: x(:)         ! Cell center coordinates
-  real, allocatable :: rho(:,:)     ! Tracer density being advected at cell centers
-  real, allocatable :: flux_p_c(:)  ! Positive flux at cell centers
-  real, allocatable :: flux_m_c(:)  ! Negative flux at cell centers
-  real, allocatable :: flux_i(:)    ! Final flux at cell interfaces
-  real dx                           ! Cell interval
-  real :: dt = 1.0                  ! Time step size
-  integer :: nx = 100               ! Cell number
-  integer :: nt = 200               ! Integration time step number
-  real :: u = 0.005                 ! Advection speed
-  real coef                         ! dt / dx
-  real, parameter :: eps = 1.0d-6   ! A small value to avoid divided-by-zero
-  integer, parameter :: ns = 3      ! Stencil width
-  integer i
-  integer :: time_step = 0, old = 1, new = 2
-  character(256) namelist_path
-  logical is_exist
+  real, allocatable, dimension(:,:) :: rho  ! Tracer density being advected at cell centers
+  real, allocatable, dimension(:,:) :: dfdx ! Tendency at cell centers
+  real, allocatable, dimension(:  ) :: fpc  ! Positive flux at cell centers
+  real, allocatable, dimension(:  ) :: fmc  ! Negative flux at cell centers
+  real, allocatable, dimension(:  ) :: f    ! Final flux at cell interfaces
+  
+  real, parameter :: eps = 1.0d-16 ! A small value to avoid divided-by-zero
+  integer, parameter :: ns = 3     ! Stencil width
 
-  namelist /params/ nx, nt, dt, u
 
-  call get_command_argument(1, namelist_path)
-  inquire(file=namelist_path, exist=is_exist)
-  if (is_exist) then
-    open(10, file=namelist_path)
-    read(10, nml=params)
-    close(10)
-  end if
+  allocate(rho (1-ns:nx+ns,2))
+  allocate(dfdx(1   :nx   ,4))
+  allocate(fpc (1-ns:nx+ns  ))
+  allocate(fmc (1-ns:nx+ns  ))
+  allocate(f   (0   :nx+1   ))
 
-  allocate(x(nx))
-  allocate(rho(1-ns:nx+ns,2))
-  allocate(flux_p_c(1-ns:nx+ns))
-  allocate(flux_m_c(1-ns:nx+ns))
-  allocate(flux_i(1:nx+1))
-
-  ! Set mesh grid coordinates.
-  dx = 1.0d0 / nx
-  do i = 1, nx
-    x(i) = (i - 1) * dx
-  end do
-
-  ! Set initial condition.
-  do i = 1, nx
-    if (x(i) >= 0.05 .and. x(i) <= 0.3) then
-      rho(i,old) = 1.0d0
-    else
-      rho(i,old) = 0.0d0
-    end if
-  end do
-  call full_boundary_condition(rho(:,old))
-  call output(rho(:,old))
+  call adv_1d_square_case_init(ns, rho(:,old))
+  call output('weno', time_step, ns, nx, x, rho(:,old))
 
   ! Run integration.
-  coef = dt / dx
-  print *, time_step, sum(rho(1:nx,old))
+  write(*, *) time_step, sum(rho(1:nx,old))
   do while (time_step < nt)
-    ! RK 1st stage
-    call weno(rho(:,old), flux_i)
-    do i = 1, nx
-      rho(i,new) = rho(i,old) - coef * (flux_i(i+1) - flux_i(i))
-    end do
-    call full_boundary_condition(rho(:,new))
-    ! RK 2nd stage
-    call weno(rho(:,new), flux_i)
-    do i = 1, nx
-      rho(i,new) = (3.0d0 * rho(i,old) + rho(i,new) - coef * (flux_i(i+1) - flux_i(i))) / 4.0d0
-    end do
-    call full_boundary_condition(rho(:,new))
-    ! RK 3st stage
-    call weno(rho(:,new), flux_i)
-    do i = 1, nx
-      rho(i,new) = (rho(i,old) + 2.0d0 * (rho(i,new) - coef * (flux_i(i+1) - flux_i(i)))) / 3.0d0
-    end do
-    call full_boundary_condition(rho(:,new))
-    ! Change time indices.
-    i = old; old = new; new = i
-    time_step = time_step + 1
-    call output(rho(:,old))
-    print *, time_step, sum(rho(1:nx,old))
+    call rk4()
+    ! call rk3_tvd()
+    call advance_time()
+    call output('weno', time_step, ns, nx, x, rho(:,old))
+    write(*, *) time_step, sum(rho(1:nx,old))
   end do
 
-  deallocate(x)
   deallocate(rho)
-  deallocate(flux_p_c)
-  deallocate(flux_m_c)
-  deallocate(flux_i)
+  deallocate(dfdx)
+  deallocate(fpc)
+  deallocate(fmc)
+  deallocate(f)
+
+  call adv_1d_square_case_final()
 
 contains
 
-  subroutine full_boundary_condition(x)
-
-    real, intent(inout) :: x(1-ns:nx+ns)
-
-    integer i
-
-    do i = 1, ns
-      x(1-i) = x(nx-i+1)
-      x(nx+i) = x(1+i-1)
-    end do
-
-  end subroutine full_boundary_condition
-
-  subroutine half_boundary_condition(x)
-
-    real, intent(inout) :: x(1:nx+1)
-
-    integer i
-
-    x(1) = x(nx+1)
-
-  end subroutine half_boundary_condition
-
-  subroutine weno(rho, flux_i)
+  subroutine weno(rho, dfdx)
 
     real, intent(in) :: rho(1-ns:nx+ns)
-    real, intent(out) :: flux_i(1:nx+1)
+    real, intent(out) :: dfdx(1:nx)
 
-    real, parameter :: c1 = 13.0d0 / 12.0d0
-    real, parameter :: c2 = 0.25d0
     real, parameter :: p1(3) = [ 1.0d0 / 3.0d0, -7.0d0 / 6.0d0, 11.0d0 / 6.0d0]
     real, parameter :: p2(3) = [-1.0d0 / 6.0d0,  5.0d0 / 6.0d0,  1.0d0 / 3.0d0]
     real, parameter :: p3(3) = [ 1.0d0 / 3.0d0,  5.0d0 / 6.0d0, -1.0d0 / 6.0d0]
-    real, parameter :: gamma_p(3) = [1.0d0 / 10.0d0, 3.0d0 / 5.0d0, 3.0d0 / 10.0d0]
-    real, parameter :: gamma_m(3) = [3.0d0 / 10.0d0, 3.0d0 / 5.0d0, 1.0d0 / 10.0d0]
+    real, parameter :: g (3) = [ 1.0d0 / 10.0d0, 3.0d0 / 5.0d0, 3.0d0 / 10.0d0]
+    real, parameter :: s1 = 13.0d0 / 12.0d0
+    real, parameter :: s2 = 0.25d0
+    real, parameter :: s11(3) = [ 1.0d0, -2.0d0,  1.0d0]
+    real, parameter :: s12(3) = [ 1.0d0, -4.0d0,  3.0d0]
+    real, parameter :: s21(3) = [ 1.0d0, -2.0d0,  1.0d0]
+    real, parameter :: s22(3) = [ 1.0d0,  0.0d0, -1.0d0]
+    real, parameter :: s31(3) = [ 1.0d0, -2.0d0,  1.0d0]
+    real, parameter :: s32(3) = [ 3.0d0, -4.0d0,  1.0d0]
 
-    real alpha ! Maximum dflux/drho (e.g. advection velocity in this case)
-    real beta(3), wgt(3), flux_s_i(3) ! Values on each stencil
-    real flux_p_i, flux_m_i
+    real umax  ! Maximum df/drho (e.g. advection velocity in this case)
+    real b(3)  ! Smooth indicators
+    real w(3)  ! Combination weights
+    real fs(3) ! Flux reconstructed on each stencil
+    real fp    ! Positive flux at cell interfaces
+    real fm    ! Negative flux at cell interfaces
     integer i
 
-    alpha = abs(u) ! NOTE: In this case, max dflux/drho is just u.
+    umax = abs(u) ! NOTE: In this case, max dflux/drho is just u.
 
     ! Calculate splitted flux at cell centers by using Lax-Friedrichs splitting.
     ! The splitting is for numerical stability by respecting upwind.
     do i = 1, nx
-      flux_p_c(i) = 0.5d0 * (u + alpha) * rho(i)
-      flux_m_c(i) = 0.5d0 * (u - alpha) * rho(i)
+      fpc(i) = 0.5 * (u + umax) * rho(i)
+      fmc(i) = 0.5 * (u - umax) * rho(i)
     end do
-    call full_boundary_condition(flux_p_c)
-    call full_boundary_condition(flux_m_c)
+    call apply_bc(ns, nx, fpc)
+    call apply_bc(ns, nx, fmc)
 
     do i = 1, nx
       ! Positive flux at cell interfaces
       ! - Calculate flux at interfaces for each stencil.
-      flux_s_i(1) = sum(p1 * flux_p_c(i-2:i  ))
-      flux_s_i(2) = sum(p2 * flux_p_c(i-1:i+1))
-      flux_s_i(3) = sum(p3 * flux_p_c(i  :i+2))
-      ! - Calculate smooth indicators for each stencil regarding cell centers.
-      beta(1) = c1 * (flux_p_c(i-2) - 2 * flux_p_c(i-1) + flux_p_c(i  ))**2 + c2 * (flux_p_c(i-2) - 4 * flux_p_c(i-1) + 3 * flux_p_c(i))**2
-      beta(2) = c1 * (flux_p_c(i-1) - 2 * flux_p_c(i  ) + flux_p_c(i+1))**2 + c2 * (flux_p_c(i-1) - flux_p_c(i+1))**2
-      beta(3) = c1 * (flux_p_c(i  ) - 2 * flux_p_c(i+1) + flux_p_c(i+2))**2 + c2 * (flux_p_c(i+2) - 4 * flux_p_c(i+1) + 3 * flux_p_c(i))**2
+      fs(1) = dot_product(p1, fpc(i-2:i  ))
+      fs(2) = dot_product(p2, fpc(i-1:i+1))
+      fs(3) = dot_product(p3, fpc(i  :i+2))
+      ! - Calculate smooth indicators for each stencil.
+      b(1) = s1 * dot_product(s11, fpc(i-2:i  ))**2 + s2 * dot_product(s12, fpc(i-2:i  ))**2
+      b(2) = s1 * dot_product(s21, fpc(i-1:i+1))**2 + s2 * dot_product(s22, fpc(i-1:i+1))**2
+      b(3) = s1 * dot_product(s31, fpc(i  :i+2))**2 + s2 * dot_product(s32, fpc(i  :i+2))**2
       ! - Calculate stencil linear combination weights considering smooth indicators.
-      wgt = gamma_p / (eps + beta(:))**2
-      wgt = wgt / sum(wgt)
-      flux_p_i = sum(wgt * flux_s_i(:))
+      w = g / (eps + b)**2
+      w = w / sum(w)
+      fp = dot_product(w, fs)
+
       ! Negative flux at cell interfaces
       ! - Calculate flux at interfaces for each stencil.
-      flux_s_i(1) = sum(p3 * flux_m_c(i+1:i-1:-1))
-      flux_s_i(2) = sum(p2 * flux_m_c(i+2:i  :-1))
-      flux_s_i(3) = sum(p1 * flux_m_c(i+3:i+1:-1))
-      ! - Calculate smooth indicators for each stencil regarding cell centers.
-      beta(1) = c1 * (flux_m_c(i-1) - 2 * flux_m_c(i  ) + flux_m_c(i+1))**2 + c2 * (flux_m_c(i-1) - 4 * flux_m_c(i  ) + 3 * flux_m_c(i+1))**2
-      beta(2) = c1 * (flux_m_c(i  ) - 2 * flux_m_c(i+1) + flux_m_c(i+2))**2 + c2 * (flux_m_c(i  ) - flux_m_c(i+2))**2
-      beta(3) = c1 * (flux_m_c(i+1) - 2 * flux_m_c(i+2) + flux_m_c(i+3))**2 + c2 * (flux_m_c(i+3) - 4 * flux_m_c(i+2) + 3 * flux_m_c(i+1))**2
+      ! - Calculate smooth indicators for each stencil.
       ! - Calculate stencil linear combination weights considering smooth indicators.
-      wgt = gamma_m / (eps + beta(:))**2
-      wgt = wgt / sum(wgt)
-      flux_m_i = sum(wgt * flux_s_i(:))
+      fm = 0.0
 
-      flux_i(i+1) = flux_p_i + flux_m_i
+      f(i) = fp + fm
     end do
-    call half_boundary_condition(flux_i)
+    call apply_bc(1, nx, f)
+
+    dfdx(1:nx) = (f(1:nx) - f(0:nx-1)) / dx
 
   end subroutine weno
 
-  subroutine output(rho)
+  subroutine rk4()
 
-    real, intent(in) :: rho(1-ns:nx+ns)
+    ! RK 1st stage
+    call weno(rho(:,old), dfdx(:,1))
+    rho(1:nx,new) = rho(1:nx,old) - 0.5d0 * dt * dfdx(:,1)
+    call apply_bc(ns, nx, rho(:,new))
+    ! RK 2nd stage
+    call weno(rho(:,new), dfdx(:,2))
+    rho(1:nx,new) = rho(1:nx,old) - 0.5d0 * dt * dfdx(:,2)
+    call apply_bc(ns, nx, rho(:,new))
+    ! RK 3rd stage
+    call weno(rho(:,new), dfdx(:,3))
+    rho(1:nx,new) = rho(1:nx,old) -         dt * dfdx(:,3)
+    call apply_bc(ns, nx, rho(:,new))
+    ! RK 4th stage
+    call weno(rho(:,new), dfdx(:,4))
+    rho(1:nx,new) = rho(1:nx,old) - (dfdx(:,1) + 2.0d0 * dfdx(:,2) + 2.0d0 * dfdx(:,3) + dfdx(:,4)) / 6.0d0
+    call apply_bc(ns, nx, rho(:,new))
 
-    character(30) file_name
-    integer ncid, time_dimid, time_varid, x_dimid, x_varid, rho_varid, ierr
+  end subroutine rk4
 
-    write(file_name, "('weno.', I3.3, '.', I4.4, '.nc')") nx, time_step
+  subroutine rk3_tvd()
 
-    ierr = NF90_CREATE(file_name, NF90_CLOBBER, ncid)
-    ierr = NF90_PUT_ATT(ncid, NF90_GLOBAL, 'scheme', 'WENO')
+    ! RK 1st stage
+    call weno(rho(:,old), dfdx(:,1))
+    rho(1:nx,new) = rho(1:nx,old) - dt * dfdx(1:nx,1)
+    call apply_bc(ns, nx, rho(:,new))
+    ! RK 2nd stage
+    call weno(rho(:,new), dfdx(:,2))
+    rho(1:nx,new) = (3.0d0 * rho(1:nx,old) + rho(1:nx,new) - dt * dfdx(:,2)) / 4.0d0
+    call apply_bc(ns, nx, rho(:,new))
+    ! RK 3rd stage
+    call weno(rho(:,new), dfdx(:,3))
+    rho(1:nx,new) = (rho(1:nx,old) + 2.0d0 * (rho(1:nx,new) - dt * dfdx(:,3))) / 3.0d0
+    call apply_bc(ns, nx, rho(:,new))
 
-    ierr = NF90_DEF_DIM(ncid, 'time', NF90_UNLIMITED, time_dimid)
-    ierr = NF90_DEF_VAR(ncid, 'time', NF90_INT, [time_dimid], time_varid)
-    ierr = NF90_DEF_DIM(ncid, 'x', nx, x_dimid)
-    ierr = NF90_DEF_VAR(ncid, 'x', NF90_FLOAT, [x_dimid], x_varid)
-    ierr = NF90_DEF_VAR(ncid, 'rho', NF90_FLOAT, [x_dimid, time_dimid], rho_varid)
-
-    ierr = NF90_ENDDEF(ncid)
-
-    ierr = NF90_PUT_VAR(ncid, time_varid, time_step)
-    ierr = NF90_PUT_VAR(ncid, x_varid, x)
-    ierr = NF90_PUT_VAR(ncid, rho_varid, rho(1:nx))
-
-    ierr = NF90_CLOSE(ncid)
-
-  end subroutine output
+  end subroutine rk3_tvd
 
 end program weno_adv_fd_1d_case
