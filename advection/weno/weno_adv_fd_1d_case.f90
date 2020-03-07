@@ -15,9 +15,9 @@
 !
 !   For negative flux:
 !
-!                       |-----------S1----------|
+!                       |-----------S3----------|
 !                       |       |-----------S2----------|
-!                       |       |       |-----------S3----------|
+!                       |       |       |-----------S1----------|
 !                    ...|---o---|---o---|---o---|---o---|---o---|...
 !                       |  i-1  |   i   |  i+1  |  i+2  |  i+3  |
 !                                       |+
@@ -34,12 +34,24 @@
 !
 !    1                                  df |
 !   --- (h(x_{i+1/2}) - h(x_{i-1/2})) = -- |
-!   d x                                 dx | x=x_i
+!   Δ x                                 dx | x=x_i
 !
-! then
+! then numerical flux at i+1/2 cell interface is
 !
 !   ^
 !   f_{i+1/2} = h(x_{i+1/2})
+!
+! The Lax-Friedrichs flux splitting technique is used to accommodate difference
+! signs of flow velocity
+!
+!        +    -
+!   f = f  + f
+!
+! where
+!
+!    +    1                   -    1
+!   f  = --- (f + umax rho), f  = --- (f - umax rho)
+!         2                        2
 !
 ! References:
 !
@@ -148,9 +160,17 @@ contains
 
       ! Negative flux at cell interfaces
       ! - Calculate flux at interfaces for each stencil.
+      fs(1) = dot_product(p1, fmc(i+3:i+1:-1))
+      fs(2) = dot_product(p2, fmc(i+2:i  :-1))
+      fs(3) = dot_product(p3, fmc(i+1:i-1:-1))
       ! - Calculate smooth indicators for each stencil.
+      b(1) = s1 * dot_product(s11, fmc(i+3:i+1:-1))**2 + s2 * dot_product(s12, fmc(i+3:i+1:-1))**2
+      b(2) = s1 * dot_product(s21, fmc(i+2:i  :-1))**2 + s2 * dot_product(s22, fmc(i+2:i  :-1))**2
+      b(3) = s1 * dot_product(s31, fmc(i+1:i-1:-1))**2 + s2 * dot_product(s32, fmc(i+1:i-1:-1))**2
       ! - Calculate stencil linear combination weights considering smooth indicators.
-      fm = 0.0
+      w = g / (eps + b)**2
+      w = w / sum(w)
+      fm = dot_product(w, fs)
 
       f(i) = fp + fm
     end do
