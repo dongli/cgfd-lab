@@ -12,10 +12,10 @@ program ffsl_adv_1d_case
   implicit none
 
   real, allocatable :: rho(:,:)           ! Tracer density being advected at cell centers
-  real, allocatable :: rho_l(:)           ! Tracer density at left cell interfaces
+  real, allocatable :: rhol(:)            ! Tracer density at left cell interfaces
   real, allocatable :: drho(:)            ! Tracer density mismatch at cell centers
-  real, allocatable :: rho_6(:)           ! Curvature in PPM at cell centers
-  real, allocatable :: flux(:)            ! Flux at cell interfaces
+  real, allocatable :: rho6(:)            ! Curvature in PPM at cell centers
+  real, allocatable :: f(:)               ! Flux at cell interfaces
   character(10) :: flux_type = 'ppm'      ! Available flux types: upwind, van_leer, ppm
   character(10) :: limiter_type = 'mono'  ! Available limiter types: none, mono, pd
   integer, parameter :: ns = 2            ! Stencil width
@@ -33,11 +33,11 @@ program ffsl_adv_1d_case
     close(10)
   end if
 
-  allocate(rho  (1-ns:nx+ns,2))
-  allocate(rho_l(1-ns:nx+ns))
-  allocate(drho (1-ns:nx+ns))
-  allocate(rho_6(1-ns:nx+ns))
-  allocate(flux (   0:nx+1 ))
+  allocate(rho (1-ns:nx+ns,2))
+  allocate(rhol(1-ns:nx+ns))
+  allocate(drho(1-ns:nx+ns))
+  allocate(rho6(1-ns:nx+ns))
+  allocate(f   (   0:nx+1 ))
 
   call adv_1d_square_case_init(ns, rho(:,old))
   call output('ffsl', time_step, ns, nx, x, rho(:,old))
@@ -47,7 +47,7 @@ program ffsl_adv_1d_case
   do while (time_step < nt)
     call ffsl(rho(:,old))
     do i = 1, nx
-      rho(i,new) = rho(i,old) - (flux(i+1) - flux(i))
+      rho(i,new) = rho(i,old) - (f(i+1) - f(i))
     end do
     call apply_bc(ns, nx, rho(:,new))
     call advance_time()
@@ -56,10 +56,10 @@ program ffsl_adv_1d_case
   end do
 
   deallocate(rho)
-  deallocate(rho_l)
+  deallocate(rhol)
   deallocate(drho)
-  deallocate(rho_6)
-  deallocate(flux)
+  deallocate(rho6)
+  deallocate(f)
 
   call adv_1d_square_case_final()
 
@@ -76,36 +76,36 @@ contains
     if (flux_type == 'ppm') then
       ! Calculate the subgrid distribution of tracer.
       do i = 1, nx
-        call ppm(rho(i-2), rho(i-1), rho(i), rho(i+1), rho(i+2), rho_l(i), drho(i), rho_6(i))
+        call ppm(rho(i-2), rho(i-1), rho(i), rho(i+1), rho(i+2), rhol(i), drho(i), rho6(i))
       end do
-      call apply_bc(ns, nx, rho_l)
+      call apply_bc(ns, nx, rhol)
       call apply_bc(ns, nx, drho)
-      call apply_bc(ns, nx, rho_6)
+      call apply_bc(ns, nx, rho6)
     end if
 
     do i = 1, nx
-      flux(i) = 0
+      f(i) = 0
       cfl = u * dt / dx
       K = int(cfl)
       c = cfl - K
       ! Calculate integer flux.
       if (cfl > 0) then
         do j = 1, K
-          flux(i) = flux(i) + rho(i - j)
+          f(i) = f(i) + rho(i - j)
         end do
       else if (cfl < 0) then
         do j = 1, -K
-          flux(i) = flux(i) - rho(i + j - 1)
+          f(i) = f(i) - rho(i + j - 1)
         end do
       end if
       l = merge(i - K - 1, i - K, cfl > 0)
       ! Calculate fractional flux.
       select case (flux_type)
       case ('upwind')
-        flux(i) = flux(i) + c * rho(l)
+        f(i) = f(i) + c * rho(l)
       case ('van_leer')
         drho(l) = mismatch(rho(l-1), rho(l), rho(l+1))
-        flux(i) = flux(i) + c * (rho(l) + (sign(1.0, cfl) - c) * drho(l) * 0.5)
+        f(i) = f(i) + c * (rho(l) + (sign(1.0, cfl) - c) * drho(l) * 0.5)
       case ('ppm')
         if (cfl >= 0) then
           s1 = 1 - abs(c)
@@ -117,10 +117,10 @@ contains
         ds = s2 - s1
         ds2 = s2**2 - s1**2
         ds3 = s2**3 - s1**3
-        flux(i) = flux(i) + sign(rho_l(l) * ds + 0.5 * drho(l) * ds2 + rho_6(l) * (0.5 * ds2 - ds3 / 3.0), cfl)
+        f(i) = f(i) + sign(rhol(l) * ds + 0.5 * drho(l) * ds2 + rho6(l) * (0.5 * ds2 - ds3 / 3.0), cfl)
       end select
     end do
-    call apply_bc(1, nx, flux)
+    call apply_bc(1, nx, f)
 
   end subroutine ffsl
 

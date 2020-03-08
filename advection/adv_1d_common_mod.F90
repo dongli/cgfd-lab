@@ -45,10 +45,10 @@ contains
     character(30) file_name
     integer ncid, time_dimid, time_varid, x_dimid, x_varid, rho_varid, ierr
 
-    write(file_name, "(A, '.', I3.3, '.', I4.4, '.nc')") scheme, nx, time_step
+    write(file_name, "(A, '.', I3.3, '.', I4.4, '.nc')") trim(scheme), nx, time_step
 
     ierr = NF90_CREATE(file_name, NF90_CLOBBER, ncid)
-    ierr = NF90_PUT_ATT(ncid, NF90_GLOBAL, 'scheme', scheme)
+    ierr = NF90_PUT_ATT(ncid, NF90_GLOBAL, 'scheme', trim(scheme))
 
     ierr = NF90_DEF_DIM(ncid, 'time', NF90_UNLIMITED, time_dimid)
     ierr = NF90_DEF_VAR(ncid, 'time', NF90_INT, [time_dimid], time_varid)
