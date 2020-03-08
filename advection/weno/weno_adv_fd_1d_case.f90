@@ -73,7 +73,7 @@ program weno_adv_fd_1d_case
   real, allocatable, dimension(:  ) :: fmc  ! Negative flux at cell centers
   real, allocatable, dimension(:  ) :: f    ! Final flux at cell interfaces
   
-  real, parameter :: eps = 1.0d-16 ! A small value to avoid divided-by-zero
+  real, parameter :: eps = 1.0d-40 ! A small value to avoid divided-by-zero
   integer, parameter :: ns = 3     ! Stencil width
 
 
@@ -84,7 +84,7 @@ program weno_adv_fd_1d_case
   allocate(f   (0   :nx+1   ))
 
   call adv_1d_square_case_init(ns, rho(:,old))
-  call output('weno', time_step, ns, nx, x, rho(:,old))
+  call output('weno-z', time_step, ns, nx, x, rho(:,old))
 
   ! Run integration.
   write(*, *) time_step, sum(rho(1:nx,old))
@@ -92,7 +92,7 @@ program weno_adv_fd_1d_case
     call rk4()
     ! call rk3_tvd()
     call advance_time()
-    call output('weno', time_step, ns, nx, x, rho(:,old))
+    call output('weno-z', time_step, ns, nx, x, rho(:,old))
     write(*, *) time_step, sum(rho(1:nx,old))
   end do
 
@@ -124,6 +124,9 @@ contains
     real, parameter :: s31(3) = [ 1.0d0, -2.0d0,  1.0d0]
     real, parameter :: s32(3) = [ 3.0d0, -4.0d0,  1.0d0]
 
+    ! New weight formula from Borges et al. (2008)
+    real t5
+
     real umax  ! Maximum df/drho (e.g. advection velocity in this case)
     real b(3)  ! Smooth indicators
     real w(3)  ! Combination weights
@@ -153,6 +156,9 @@ contains
       b(1) = s1 * dot_product(s11, fpc(i-2:i  ))**2 + s2 * dot_product(s12, fpc(i-2:i  ))**2
       b(2) = s1 * dot_product(s21, fpc(i-1:i+1))**2 + s2 * dot_product(s22, fpc(i-1:i+1))**2
       b(3) = s1 * dot_product(s31, fpc(i  :i+2))**2 + s2 * dot_product(s32, fpc(i  :i+2))**2
+      ! - WENO-Z
+      t5 = abs(b(1) - b(3))
+      b = (b + eps) / (b + t5 + eps)
       ! - Calculate stencil linear combination weights considering smooth indicators.
       w = g / (eps + b)**2
       w = w / sum(w)
@@ -167,6 +173,9 @@ contains
       b(1) = s1 * dot_product(s11, fmc(i+3:i+1:-1))**2 + s2 * dot_product(s12, fmc(i+3:i+1:-1))**2
       b(2) = s1 * dot_product(s21, fmc(i+2:i  :-1))**2 + s2 * dot_product(s22, fmc(i+2:i  :-1))**2
       b(3) = s1 * dot_product(s31, fmc(i+1:i-1:-1))**2 + s2 * dot_product(s32, fmc(i+1:i-1:-1))**2
+      ! - WENO-Z
+      t5 = abs(b(1) - b(3))
+      b = (b + eps) / (b + t5 + eps)
       ! - Calculate stencil linear combination weights considering smooth indicators.
       w = g / (eps + b)**2
       w = w / sum(w)

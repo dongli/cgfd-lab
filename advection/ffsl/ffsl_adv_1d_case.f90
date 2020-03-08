@@ -7,26 +7,19 @@
 
 program ffsl_adv_1d_case
 
-  use netcdf
+  use adv_1d_square_case_mod
 
   implicit none
 
-  real, allocatable :: x(:)               ! Cell center coordinates
   real, allocatable :: rho(:,:)           ! Tracer density being advected at cell centers
   real, allocatable :: rho_l(:)           ! Tracer density at left cell interfaces
   real, allocatable :: drho(:)            ! Tracer density mismatch at cell centers
   real, allocatable :: rho_6(:)           ! Curvature in PPM at cell centers
   real, allocatable :: flux(:)            ! Flux at cell interfaces
-  real dx                                 ! Cell interval
-  real :: dt = 1.0                        ! Time step size
-  integer :: nx = 100                     ! Cell number
-  integer :: nt = 200                     ! Integration time step number
   character(10) :: flux_type = 'ppm'      ! Available flux types: upwind, van_leer, ppm
   character(10) :: limiter_type = 'mono'  ! Available limiter types: none, mono, pd
-  real :: u = 0.005                       ! Advection speed
   integer, parameter :: ns = 2            ! Stencil width
   integer i
-  integer :: time_step = 0, old = 1, new = 2
   character(256) namelist_path
   logical is_exist
 
@@ -40,29 +33,14 @@ program ffsl_adv_1d_case
     close(10)
   end if
 
-  allocate(x(nx))
-  allocate(rho(1-ns:nx+ns,old:new))
+  allocate(rho  (1-ns:nx+ns,2))
   allocate(rho_l(1-ns:nx+ns))
-  allocate(drho(1-ns:nx+ns))
+  allocate(drho (1-ns:nx+ns))
   allocate(rho_6(1-ns:nx+ns))
-  allocate(flux(1:nx+1))
+  allocate(flux (   0:nx+1 ))
 
-  ! Set mesh grid coordinates.
-  dx = 1.0d0 / nx
-  do i = 1, nx
-    x(i) = (i - 1) * dx
-  end do
-
-  ! Set initial condition.
-  do i = 1, nx
-    if (x(i) >= 0.05 .and. x(i) <= 0.3) then
-      rho(i,old) = 1.0d0
-    else
-      rho(i,old) = 0.0d0
-    end if
-  end do
-  call full_boundary_condition(rho(:,old))
-  call output(rho(:,old))
+  call adv_1d_square_case_init(ns, rho(:,old))
+  call output('ffsl', time_step, ns, nx, x, rho(:,old))
 
   ! Run integration.
   print *, time_step, sum(rho(1:nx,old))
@@ -71,43 +49,21 @@ program ffsl_adv_1d_case
     do i = 1, nx
       rho(i,new) = rho(i,old) - (flux(i+1) - flux(i))
     end do
-    call full_boundary_condition(rho(:,new))
-    ! Change time indices.
-    i = old; old = new; new = i
-    time_step = time_step + 1
-    call output(rho(:,old))
+    call apply_bc(ns, nx, rho(:,new))
+    call advance_time()
+    call output('ffsl', time_step, ns, nx, x, rho(:,old))
     print *, time_step, sum(rho(1:nx,old))
   end do
 
-  deallocate(x)
   deallocate(rho)
   deallocate(rho_l)
   deallocate(drho)
   deallocate(rho_6)
   deallocate(flux)
 
+  call adv_1d_square_case_final()
+
 contains
-
-  subroutine full_boundary_condition(x)
-
-    real, intent(inout) :: x(1-ns:nx+ns)
-
-    integer i
-
-    do i = 1, ns
-      x(1-i) = x(nx-i+1)
-      x(nx+i) = x(1+i-1)
-    end do
-
-  end subroutine full_boundary_condition
-
-  subroutine half_boundary_condition(x)
-
-    real, intent(inout) :: x(1:nx+1)
-
-    x(nx+1) = x(1)
-
-  end subroutine half_boundary_condition
 
   subroutine ffsl(rho)
 
@@ -122,9 +78,9 @@ contains
       do i = 1, nx
         call ppm(rho(i-2), rho(i-1), rho(i), rho(i+1), rho(i+2), rho_l(i), drho(i), rho_6(i))
       end do
-      call full_boundary_condition(rho_l)
-      call full_boundary_condition(drho)
-      call full_boundary_condition(rho_6)
+      call apply_bc(ns, nx, rho_l)
+      call apply_bc(ns, nx, drho)
+      call apply_bc(ns, nx, rho_6)
     end if
 
     do i = 1, nx
@@ -164,7 +120,7 @@ contains
         flux(i) = flux(i) + sign(rho_l(l) * ds + 0.5 * drho(l) * ds2 + rho_6(l) * (0.5 * ds2 - ds3 / 3.0), cfl)
       end select
     end do
-    call half_boundary_condition(flux)
+    call apply_bc(1, nx, flux)
 
   end subroutine ffsl
 
@@ -224,33 +180,5 @@ contains
     end select
 
   end function mismatch
-
-  subroutine output(rho)
-
-    real, intent(in) :: rho(1-ns:nx+ns)
-
-    character(30) file_name
-    integer ncid, time_dimid, time_varid, x_dimid, x_varid, rho_varid, ierr
-
-    write(file_name, "('ffsl.', I3.3, '.', I4.4, '.nc')") nx, time_step
-
-    ierr = NF90_CREATE(file_name, nf90_clobber, ncid)
-    ierr = NF90_PUT_ATT(ncid, NF90_GLOBAL, 'scheme', 'FFSL')
-
-    ierr = NF90_DEF_DIM(ncid, 'time', NF90_UNLIMITED, time_dimid)
-    ierr = NF90_DEF_VAR(ncid, 'time', NF90_INT, [time_dimid], time_varid)
-    ierr = NF90_DEF_DIM(ncid, 'x', nx, x_dimid)
-    ierr = NF90_DEF_VAR(ncid, 'x', NF90_FLOAT, [x_dimid], x_varid)
-    ierr = NF90_DEF_VAR(ncid, 'rho', NF90_FLOAT, [x_dimid, time_dimid], rho_varid)
-
-    ierr = NF90_ENDDEF(ncid)
-
-    ierr = NF90_PUT_VAR(ncid, time_varid, time_step)
-    ierr = NF90_PUT_VAR(ncid, x_varid, x)
-    ierr = NF90_PUT_VAR(ncid, rho_varid, rho(1:nx))
-
-    ierr = NF90_CLOSE(ncid)
-
-  end subroutine output
 
 end program ffsl_adv_1d_case
