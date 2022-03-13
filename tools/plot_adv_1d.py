@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 from netCDF4 import Dataset
 import os
 import sys
+import warnings
+warnings.filterwarnings('ignore')
 
 parser = argparse.ArgumentParser(description='Plot 1d advection test cases.', formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument(      dest='file_patterns', help='NetCDF esult file pattern', nargs='+')
@@ -22,7 +24,10 @@ file_paths = []
 for file_pattern in args.file_patterns:
 	file_paths.append(sorted(glob(file_pattern)))
 
-pdf_file_name = '_vs_'.join([os.path.basename(file_pattern).split('.')[0] for file_pattern in args.file_patterns])
+if len(file_paths) == 0:
+	print(f'[Error]: Invalid file pattern {args.file_patterns}!')
+
+pdf_file_name = os.path.basename(args.file_patterns[0].split('.')[0])
 
 with PdfPages(pdf_file_name + '.pdf') as pdf:
 	for k in range(0, len(file_paths[0]), args.time_step_stride):
